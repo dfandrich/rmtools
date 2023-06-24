@@ -121,8 +121,8 @@ def make_key(ver: Ver) -> Tuple:
 def notify_new_ver(vers: List[Ver]):
     """Display a message listing all the updated versions"""
     for ver in vers:
-        print(f'Project {ver.project} (at {ver.ecosystem}) has updated its version to '
-              '{ver.version}')
+        print(f'Project {ver.project} (at {ver.ecosystem}) has updated its version upstream to '
+              f'{ver.version}')
 
 
 def check_latest_versions(argv: List[str]):
@@ -172,9 +172,9 @@ def check_latest_versions(argv: List[str]):
             key = make_key(ver)
             if key in previous.versions:
                 if previous.versions[key] != ver.version:
-                    logging.warning('New version found for %s (at %s): %s -> %s',
-                                    ver.project, ver.ecosystem,
-                                    previous.versions[key], ver.version)
+                    logging.info('New version found for %s (at %s): %s -> %s',
+                                 ver.project, ver.ecosystem,
+                                 previous.versions[key], ver.version)
                     new_ver.append(ver)
             else:
                 logging.info('New package: %s (at %s)',
