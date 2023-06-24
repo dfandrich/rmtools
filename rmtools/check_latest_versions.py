@@ -162,8 +162,7 @@ def check_latest_versions(argv: List[str]):
 
     if 'check_packages_unstable' in conf:
         vers = check_packages(rm, conf['check_packages_unstable'], True)
-
-    allvers.extend(vers)
+        allvers.extend(vers)
 
     vers_dict = {make_key(ver): ver.version for ver in allvers}
     if previous:
