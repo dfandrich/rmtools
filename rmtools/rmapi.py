@@ -12,10 +12,6 @@ import requests
 BASE_URL = 'https://release-monitoring.org/api/v2/'
 
 
-class APIError(Exception):
-    pass
-
-
 class RMApi:
     """Class for performing requests on release-monitoring.org
     """
@@ -40,9 +36,7 @@ class RMApi:
                   'name': package}
         resp = requests.get(BASE_URL + 'packages/',
                             headers=self.headers, params=params)
-
-        if resp.status_code / 100 != 2:
-            raise APIError(f'HTTP error {resp.status_code}')
+        resp.raise_for_status()
         r = json.loads(resp.text)
         if r['total_items'] == 0:
             return None
