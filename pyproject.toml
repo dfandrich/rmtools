@@ -1,3 +1,44 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
+requires = [
+    "setuptools>=42",
+]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "rmtools"
+description = "Tools to use with https://release-monitoring.org/ (anitya)"
+version = "0"
+readme = "README.md"
+authors = [{name = "Dan Fandrich", email = "dan@coneharvesters.com"}]
+license = {text = "GPLv2+"}
+classifiers = [
+    "Programming Language :: Python",
+    "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Operating System :: OS Independent",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Users",
+    "Natural Language :: English",
+    "Topic :: Utilities",
+    "Typing :: Typed",
+]
+dependencies = [
+    "requests >= 2.25.1, <= 2.27.1",
+    "PyYAML == 5.3.1",
+]
+
+[project.urls]
+#Homepage = "https://github.com/dfandrich/rmtools"
+
+[project.scripts]
+check-latest-versions = "rmtools.check_latest_versions:main"
+
+[tool.setuptools]
+packages = ["rmtools"]
+license-files = ["COPYING"]
+include-package-data = false
+
+[tool.flake8]
+max-line-length = "100"
