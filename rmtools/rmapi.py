@@ -40,5 +40,5 @@ class RMApi:
         r = json.loads(resp.text)
         if r['total_items'] == 0:
             return None
-        assert(r['total_items'] == 1)
+        assert r['total_items'] == 1
         return r['items'][0]

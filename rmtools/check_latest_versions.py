@@ -69,7 +69,6 @@ class PersistentVersions:
             pickle.dump(self.data, f, protocol=4)
 
 
-
 def load_config() -> Optional[Dict[str, Any]]:
     """Load the program configuration file"""
 
@@ -101,7 +100,7 @@ def check_packages(rm: rmapi.RMApi, packages: Dict[str, List[str]], unstable: bo
             logging.info('Retrieving version for %s', package)
             try:
                 info = rm.get_distro_package_info(distro, package)
-            except:
+            except:  # noqa: E722
                 logging.error('Error retrieving package info for "%s" in distro "%s"',
                               package, distro, exc_info=True)
             else:
