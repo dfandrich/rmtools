@@ -30,8 +30,19 @@ classifiers = [
 ]
 requires-python = ">=3.8,<3.13"
 dependencies = [
-    "requests >= 2.25.1, <= 2.31.0",
+    "requests >= 2.25.1, <= 2.32.3",
     "PyYAML == 5.3.1, <= 6.0.1",
+]
+
+# The version dependencies listed are conservative and reflect ones that have
+# actually been tested
+[project.optional-dependencies]
+dev = [
+    "flake8 >= 5.0.4, <= 7.1.1",
+    "flake8-builtins",
+    "flake8-import-order",
+    "flake8-pyproject",
+    "pytype >= 2023.9.19, <= 2024.4.11"
 ]
 
 [project.urls]
@@ -46,4 +57,4 @@ license-files = ["COPYING"]
 include-package-data = false
 
 [tool.flake8]
-max-line-length = "100"
+max-line-length = 100
