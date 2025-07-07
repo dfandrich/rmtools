@@ -1,7 +1,7 @@
 # Release Monitoring Tools
 
 This is a set of tools for interacting with the https://release-monitoring.org/
-service that tracks software releases.
+service (a.k.a. Anitya) that tracks software releases.
 
 ## Installation
 
@@ -15,7 +15,9 @@ Run this to install the program from the source tree:
 
 This program checks release-monitoring.org for updates versions of one or more
 packages.  The package names given to check are the ones used by the specified
-distribution, which isn't necessarily the same as the upstream project.
+distribution, which isn't necessarily the same as the upstream project. They
+are only used to find the correct release-monitoring.org ID, since names are
+much easier to work with than arbitrary numbers.
 
 Create a file `$HOME/.config/rmcheck.yaml` that contains the list of packages
 to check. The format looks like:
@@ -39,7 +41,7 @@ names for which packages are to be checked. Under each disto list the packages
 *as used in that distro*. These will be used to look up the project name at
 release-monitoring.org and the version thereof. The packages under
 `check_packages_unstable` will have their prerelease versions checked (instead
-to their stable versions). Not all projects us prerelease versions.
+to their stable versions). Not all projects use prerelease versions.
 
 On the first run, the initial package versions are read and stored in
 `$HOME/.local/share/rmversions`. On subsequent runs, any changed versions will
