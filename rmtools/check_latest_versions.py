@@ -1,13 +1,13 @@
-"""Notifies when newer versions of upstream packages are available
-"""
+"""Notifies when newer versions of upstream packages are available."""
 
+import contextlib
 import datetime
 import logging
 import os
 import pickle
 import sys
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 from rmtools import rmapi
 
@@ -20,7 +20,7 @@ DATA_FILE = 'rmversions'
 
 @dataclass
 class Ver:
-    "Holds a project version"
+    """Holds a project version."""
     ecosystem: str
     project: str
     version: str
@@ -28,27 +28,28 @@ class Ver:
 
 
 class PersistentVersions:
-    """Class to handle persisting the versions across runs"""
+    """Class to handle persisting the versions across runs."""
 
     @dataclass
     class PersistentVersionsData:
-        "Version numbers to persist to check next time"
+        """Version numbers to persist to check next time."""
         config_ver: int  # always 1 (for now)
         check_time: float
-        versions: Dict[Tuple, str]
+        versions: dict[tuple, str]
 
     def __init__(self):
         self.data = None  # type: Optional[self.PersistentVersionsData]
 
-    def set_vers(self, vers_dict: Dict[Tuple, str]):
-        """Set new versions to persist"""
-        self.data = self.PersistentVersionsData(1, datetime.datetime.now().timestamp(), vers_dict)
+    def set_vers(self, vers_dict: dict[tuple, str]):
+        """Set new versions to persist."""
+        self.data = self.PersistentVersionsData(
+            1, datetime.datetime.now(tz=datetime.timezone.utc).timestamp(), vers_dict)
 
     def get(self) -> Optional[PersistentVersionsData]:
         return self.data
 
     def persistent_dir(self):
-        """Get the directory in which to store the persistent version file"""
+        """Get the directory in which to store the persistent version file."""
         if 'XDG_DATA_HOME' in os.environ:
             return os.environ['XDG_DATA_HOME']
         if 'HOME' in os.environ:
@@ -56,51 +57,47 @@ class PersistentVersions:
         return '.'
 
     def load(self):
-        """Load the persistent version file from disk"""
+        """Load the persistent version file from disk."""
         try:
             with open(os.path.join(self.persistent_dir(), DATA_FILE), 'rb') as f:
                 self.data = pickle.load(f)
         except FileNotFoundError:
-            logging.warning("Previous version file not found; first run?")
+            logging.warning('Previous version file not found; first run?')
 
     def save(self):
-        """Save the versions in a file to load in later"""
+        """Save the versions in a file to load in later."""
         with open(os.path.join(self.persistent_dir(), DATA_FILE), 'wb') as f:
             pickle.dump(self.data, f, protocol=4)
 
 
-def load_config() -> Optional[Dict[str, Any]]:
-    """Load the program configuration file"""
+def load_config() -> Optional[dict[str, Any]]:
+    """Load the program configuration file."""
 
-    def load_config_file(fn: str) -> Dict[str, Any]:
-        """Load the config file at the given path"""
+    def load_config_file(fn: str) -> dict[str, Any]:
+        """Load the config file at the given path."""
         with open(fn) as f:
             return yaml.load(f, Loader=yaml.SafeLoader)
 
     if 'XDG_CONFIG_HOME' in os.environ:
-        try:
+        with contextlib.suppress(FileNotFoundError, PermissionError):
             return load_config_file(os.path.join(os.environ['XDG_CONFIG_HOME'], CONFIG_FILE))
-        except (FileNotFoundError, PermissionError):
-            pass
 
     if 'HOME' in os.environ:
-        try:
+        with contextlib.suppress(FileNotFoundError, PermissionError):
             return load_config_file(os.path.join(os.environ['HOME'], '.config', CONFIG_FILE))
-        except (FileNotFoundError, PermissionError):
-            pass
 
     return None
 
 
-def check_packages(rm: rmapi.RMApi, packages: Dict[str, List[str]], unstable: bool) -> List[Ver]:
-    """Check all the package versions at release-monitoring.org"""
+def check_packages(rm: rmapi.RMApi, packages: dict[str, list[str]], unstable: bool) -> list[Ver]:
+    """Check all the package versions at release-monitoring.org."""
     vers = []
     for distro in packages:
         for package in packages[distro]:
             logging.info('Retrieving version for %s', package)
             try:
                 info = rm.get_distro_package_info(distro, package)
-            except:  # noqa: E722
+            except:  # noqa: E722, PIE786
                 logging.error('Error retrieving package info for "%s" in distro "%s"',
                               package, distro, exc_info=True)
             else:
@@ -112,21 +109,21 @@ def check_packages(rm: rmapi.RMApi, packages: Dict[str, List[str]], unstable: bo
     return vers
 
 
-def make_key(ver: Ver) -> Tuple:
-    """Make a unique hashable key of the project at r-m.o"""
+def make_key(ver: Ver) -> tuple:
+    """Make a unique hashable key of the project at r-m.o."""
     return (ver.ecosystem, ver.project, ver.unstable)
 
 
-def notify_new_ver(vers: List[Ver]):
-    """Display a message listing all the updated versions"""
+def notify_new_ver(vers: list[Ver]):
+    """Display a message listing all the updated versions."""
     for ver in vers:
         print(f'Project {ver.project} (at {ver.ecosystem}) has updated its version upstream to '
               f'{ver.version}')
 
 
-def check_latest_versions(argv: List[str]):
-    """Read the config file and check for updated project versions"""
-    if len(argv) > 1 and argv[1] == '-v':
+def main() -> int:
+    """Read the config file and check for updated project versions."""
+    if len(sys.argv) > 1 and sys.argv[1] == '-v':
         level = logging.INFO
     else:
         level = logging.WARNING
@@ -148,8 +145,8 @@ def check_latest_versions(argv: List[str]):
         if previous.config_ver != 1:
             logging.error('Persist file is from a newer version; delete it to continue')
             return 2
-        prev_date = datetime.datetime.fromtimestamp(previous.check_time)
-        delta = datetime.datetime.now() - prev_date
+        prev_date = datetime.datetime.fromtimestamp(previous.check_time, tz=datetime.timezone.utc)
+        delta = datetime.datetime.now(tz=datetime.timezone.utc) - prev_date
         logging.info('Last check was at %s (%d hours ago)',
                      datetime.datetime.ctime(prev_date), delta.total_seconds() / 3600)
 
@@ -190,9 +187,7 @@ def check_latest_versions(argv: List[str]):
     persist.set_vers(vers_dict)
     persist.save()
 
-
-def main():
-    sys.exit(check_latest_versions(sys.argv))
+    return 0
 
 
 if __name__ == '__main__':

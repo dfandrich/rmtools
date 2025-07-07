@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "rmtools"
 description = "Tools to use with https://release-monitoring.org/ (anitya)"
-version = "0"
+version = "0.1dev"
 readme = "README.md"
 authors = [{name = "Dan Fandrich", email = "dan@coneharvesters.com"}]
 license = {text = "GPLv2+"}
@@ -28,9 +28,9 @@ classifiers = [
     "Topic :: Utilities",
     "Typing :: Typed",
 ]
-requires-python = ">=3.8,<3.13"
+requires-python = ">=3.9,<3.13"
 dependencies = [
-    "requests >= 2.25.1, <= 2.32.3",
+    "requests >= 2.25.1, <= 2.32.4",
     "PyYAML == 5.3.1, <= 6.0.1",
 ]
 
@@ -38,11 +38,34 @@ dependencies = [
 # actually been tested
 [project.optional-dependencies]
 dev = [
-    "flake8 >= 5.0.4, <= 7.1.1",
+    "flake8 >= 5.0.4, < 8",
+    "flake8-assertive",
+    "flake8-bugbear",
     "flake8-builtins",
+    "flake8-classmethod-staticmethod",
+    "flake8-comprehensions",
+    "flake8-datetimez",
+    "flake8-deprecated",
+    "flake8-docstrings",
+    "flake8-get-chaining",
     "flake8-import-order",
+    "flake8-mutable",
+    "flake8-no-pep420",
+    "flake8-noqa",
+    "flake8-picky-parentheses",
+    "flake8-pie",
+    "flake8-plus",  # This isn't compatible with python 3.9
     "flake8-pyproject",
-    "pytype >= 2023.9.19, <= 2024.4.11"
+    "flake8-quotes",
+    "flake8-raise",
+    "flake8-requirements",
+    "flake8-return",
+    "flake8-sfs",
+    "flake8-simplify",
+    "flake8-super",
+    "flake8-warnings",
+    "flake8-wot",
+    "pytype >= 2023.9.19, <= 2024.10.11"
 ]
 
 [project.urls]
@@ -57,4 +80,8 @@ license-files = ["COPYING"]
 include-package-data = false
 
 [tool.flake8]
+ignore = ["W503", "E741", "E501", "D102", "D103", "D107", "B001", "IFS001", "NQA102", "PAR101",
+          "PAR103", "PIE803", "PLU002", "SFS301", "SIM115", "SIM904"]
 max-line-length = 100
+docstring-convention = "google"
+blanks-before-imports = 1

@@ -1,10 +1,10 @@
-"""Python API for https://release-monitoring.org/
+"""Python API for https://release-monitoring.org/.
 
 See https://release-monitoring.org/static/docs/api.html
 """
 
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import requests
 
@@ -13,8 +13,7 @@ BASE_URL = 'https://release-monitoring.org/api/v2/'
 
 
 class RMApi:
-    """Class for performing requests on release-monitoring.org
-    """
+    """Class for performing requests on release-monitoring.org."""
 
     def __init__(self, token=None):
         """Initializes the release-monitoring API object.
@@ -25,8 +24,8 @@ class RMApi:
         if token:
             self.headers = {'Authorization': 'token ' + token}
 
-    def get_distro_package_info(self, distro: str, package: str) -> Optional[Dict[str, Any]]:
-        """Returns information about a package found in a distro
+    def get_distro_package_info(self, distro: str, package: str) -> Optional[dict[str, Any]]:
+        """Returns information about a package found in a distro.
 
         Returns:
           a dict of info about that package, or None if package is invalid or
