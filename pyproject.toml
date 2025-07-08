@@ -29,13 +29,13 @@ classifiers = [
     "Typing :: Typed",
 ]
 requires-python = ">=3.9,<3.13"
+# The version dependencies listed are conservative and reflect ones that have
+# actually been tested
 dependencies = [
     "requests >= 2.25.1, <= 2.32.4",
     "PyYAML == 5.3.1, <= 6.0.1",
 ]
 
-# The version dependencies listed are conservative and reflect ones that have
-# actually been tested
 [project.optional-dependencies]
 dev = [
     "flake8 >= 5.0.4, < 8",
@@ -73,6 +73,7 @@ dev = [
 
 [project.scripts]
 check-latest-versions = "rmtools.check_latest_versions:main"
+add-matching = "rmtools.add_matching:main"
 
 [tool.setuptools]
 packages = ["rmtools"]

@@ -49,6 +49,24 @@ be written to stdout. If set up as a cron job, the output can be mailed to you
 automatically (see your cron documentation to find out how). If the `-v` option
 is given, verbose logging is enabled.
 
+### add-matching
+
+This program adds new packages to an existing project. Run it like:
+
+```
+add-matching --distro DistroName --token-file=~/.config/rmtools-token
+```
+
+Each line of input consists of space-separated project, package and URL strings.
+If the project doesn't already contain any package in the given distro, then
+release-monitoring.org is searched for a project with the given project name
+and homepage URL. If one is found, the given package is added to the project.
+If not, the line is skipped and nothing is added.
+
+The `--token-file` option points to a file containing a
+release-monitoring.org token, which can be generated at
+https://release-monitoring.org/settings/
+
 ## License
 
 This program is Copyright © 2023–2025 by Daniel Fandrich. It is distributed
