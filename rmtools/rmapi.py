@@ -7,9 +7,7 @@ import json
 import logging
 from typing import Any, Optional
 
-import requests
-
-from . import __version__ as ver
+from rmtools import netreq
 
 
 # The base URL for API requests
@@ -22,29 +20,6 @@ NUM_PER_PAGE = 250
 MAX_PAGE_FAILSAFE = 1000
 
 DATA_TYPE = 'application/json'
-USER_AGENT = 'rmtools/' + ver
-
-
-class Session(requests.Session):
-    """Set up a requests session with a standard configuration."""
-
-    def __init__(self, total: int = 4, backoff_factor: int = 2,
-                 status_forcelist: Optional[list[int]] = None,
-                 allowed_methods: Optional[list[str]] = None):
-        super().__init__()
-        if not status_forcelist:
-            status_forcelist = [429, 500, 502, 503, 504]
-        if not allowed_methods:
-            allowed_methods = ['HEAD', 'GET', 'OPTIONS']
-
-        # Experimental retry settings
-        # This should delay a total of 2+4+8+16 seconds before aborting, by default
-        retry_strategy = requests.adapters.Retry(
-            total=total, backoff_factor=backoff_factor, status_forcelist=status_forcelist,
-            allowed_methods=allowed_methods)
-        adapter = requests.adapters.HTTPAdapter(max_retries=retry_strategy)
-        self.mount('https://', adapter)
-        self.mount('http://', adapter)
 
 
 class RMApi:
@@ -57,12 +32,12 @@ class RMApi:
         """
         self.headers = {
             'Accept': DATA_TYPE,
-            'User-Agent': USER_AGENT
+            'User-Agent': netreq.USER_AGENT
         }
         if token:
             self.headers.update({'Authorization': 'Token ' + token})
 
-        self.req = Session()
+        self.req = netreq.Session()
 
     def get_paged_request_items(self, path: str, params: dict[str, str]) -> list:
         """Returns the full output of a paged request."""
@@ -73,7 +48,8 @@ class RMApi:
             logging.debug('Requesting %s page %d', path, page)
             resp = self.req.get(BASE_URL + path + '/',
                                 headers=self.headers, params=params
-                                | {'items_per_page': NUM_PER_PAGE, 'page': page})
+                                | {'items_per_page': NUM_PER_PAGE, 'page': page},
+                                timeout=netreq.TIMEOUT)
             resp.raise_for_status()
             r = json.loads(resp.text)
             items.extend(r['items'])
@@ -97,7 +73,7 @@ class RMApi:
         params = {'distribution': distro,
                   'name': package}
         resp = self.req.get(BASE_URL + 'packages/',
-                            headers=self.headers, params=params)
+                            headers=self.headers, params=params, timeout=netreq.TIMEOUT)
         resp.raise_for_status()
         r = json.loads(resp.text)
         if r['total_items'] == 0:
@@ -128,5 +104,5 @@ class RMApi:
             'project_ecosystem': project_ecosystem
         }
         resp = self.req.post(BASE_URL + 'packages/', headers=self.headers | headers,
-                             data=json.dumps(data))
+                             data=json.dumps(data), timeout=netreq.TIMEOUT)
         resp.raise_for_status()

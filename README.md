@@ -9,6 +9,14 @@ Run this to install the program from the source tree:
 
     python3 -m pip install .
 
+Run this to run the unit test suite:
+
+    pytest
+
+or
+
+    python3 -m unittest
+
 ## Programs
 
 ### check-latest-versions
@@ -57,15 +65,65 @@ This program adds new packages to an existing project. Run it like:
 add-matching --distro DistroName --token-file=~/.config/rmtools-token
 ```
 
-Each line of input consists of space-separated project, package and URL strings.
-If the project doesn't already contain any package in the given distro, then
-release-monitoring.org is searched for a project with the given project name
-and homepage URL. If one is found, the given package is added to the project.
-If not, the line is skipped and nothing is added.
+Each line of input consists of space-separated project, package and URL strings
+(each field can be double-quoted to embed a space).  If the project doesn't
+already contain any package in the given distro, then release-monitoring.org is
+searched for a project with the given project name and homepage URL. If one is
+found, the given package is added to the project.  If not, the line is skipped
+and nothing is added.
+
+This input data is generally available in distributions' package metadata. For
+example, a simple way of generating it with an RPM-based distribution is with
+a command like:
+
+```sh
+rpm -q --queryformat '%{NAME} %{NAME} %{URL}\n' -p SRPMS/*.src.rpm
+```
+
+However, often distributions will use a prefix on package names (e.g. `python-`
+for Python modules or `perl-` for perl packages) so some post-processing may be
+required to match the plain project names usually found in Anitya.
 
 The `--token-file` option points to a file containing a
 release-monitoring.org token, which can be generated at
 https://release-monitoring.org/settings/
+
+The program makes sure that nothing is added to a project without a firm match.
+There are many projects in Anita with the same name but in different namespaces
+(e.g. `curl` is the name of a C library, a Rust crate and a R package) so it
+takes a match on another piece of metadata before a package is added. This
+metadata is nominally the URL provided in the input, but if that doesn't
+directly match the Anitya Homepage (with a bit of a fuzz factor), a deeper
+check is needed. add-matching does not look for alternate project names.
+Each package name that is added is written to stdout.
+
+If the URL is for a known site that supplies additional metadata, that site is
+contacted to retrieve it. For example, if the input data or the Anitya project
+data contains a PyPi URL, PyPi will be contacted to retrieve its idea of the
+project home page and source code repository URL. If one of those match, then
+the project is considered to be the right one and that package is added. This
+lookup process is NOT done recursively.
+
+If the `--no-external-match` option is given, external sites are not contacted
+to obtain more project information to help the match algorithm find the correct
+Anitya project. This will not cause packages to be added to the incorrect
+projects but could rather cause a package to be skipped due to an insufficient
+match.
+
+Some projects appear more than once in Anitya. If such a duplicate is found,
+the package is skipped since it's not clear which would be the preferred one.
+
+If the `--dump-existing` option is given, a list is written to the given file
+of all packages in Anitya for the given distribution. If used with
+`--no-external-match`, it will only dump newly-added packages.
+
+Some external sites (e.g. GitHub) may have rate limits on accessing the
+metadata (these limits can be as low as one per minute averaged).  If you start
+seeing rate limit errors from GitHub while performing bulk updates over many
+packages, use the `--gh-token-file` option to specify a path to a file holding
+a GitHub token in order to authenticate your GitHub API calls. The rate limit
+for authenticated requests is several orders of magnitude larger than the
+unauthenticated limit.
 
 ## License
 
