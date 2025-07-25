@@ -66,11 +66,11 @@ add-matching --distro DistroName --token-file=~/.config/rmtools-token
 ```
 
 Each line of input consists of space-separated project, package and URL strings
-(each field can be double-quoted to embed a space).  If the project doesn't
-already contain any package in the given distro, then release-monitoring.org is
-searched for a project with the given project name and homepage URL. If one is
-found, the given package is added to the project.  If not, the line is skipped
-and nothing is added.
+(each field can be single or double-quoted to embed a space).  If the project
+doesn't already contain any package in the given distro, then
+release-monitoring.org is searched for a project with the given project name
+and homepage URL. If one is found, the given package is added to the project.
+If not, the line is skipped and nothing is added.
 
 This input data is generally available in distributions' package metadata. For
 example, a simple way of generating it with an RPM-based distribution is with
@@ -128,6 +128,33 @@ packages, use the `--gh-token-file` option to specify a path to a file holding
 a GitHub token in order to authenticate your GitHub API calls. The rate limit
 for authenticated requests is several orders of magnitude larger than the
 unauthenticated limit.
+
+### find-project
+
+This program searches for existing projects matching a package. Run it like:
+```
+find-project
+```
+Each line of input consists of space-separated project, package and URL strings
+(each field can be double-quoted to embed a space).  The project field is
+ignored, but something must be supplied in that first field for compatibility
+with the input format of `add-matching`.
+
+The output is in the same format, namely:
+```
+project package URL
+```
+with the matched information. This can be fed into `add-matching` to add these
+packages to the given projects.  This shouldn't be done without first
+double-checking the projects to ensure they are the correct ones. It often
+happens that an umbrella URL (for an organization, for example) will be used for
+many sub-projects in a site, so false positives can easily occur.
+
+The `--allow-duplicates`` option will create entries for each matching project,
+even if there is more than one. Normally, those with more than one match are
+skipped entirely since there is no way to know which is the correct entry. Use
+of this option is nearly guaranteed to find invalid entries, but can still be
+useful to find more potential projects for manual verification.
 
 ## License
 

@@ -3,6 +3,7 @@
 See https://release-monitoring.org/static/docs/api.html
 """
 
+import functools
 import json
 import logging
 from typing import Any, Optional
@@ -88,6 +89,20 @@ class RMApi:
         """
         return self.get_paged_request_items('projects', {'name': project})
 
+    def find_project_by_ecosystem(self, ecosystem: str) -> list[dict]:
+        """Returns information about any projects matching the ecosystem.
+
+        This is most useful to match a URL which is used when a project isn't
+        in any other ecosystem.  If more than one project matches the name,
+        return them all.
+        """
+        return self.get_paged_request_items('projects', {'ecosystem': ecosystem})
+
+    def find_project_by_name(self, ecosystem: str, name: str) -> list[dict]:
+        """Returns information about any projects matching the name & ecosystem."""
+        return self.get_paged_request_items(
+            'projects', {'name': name, 'ecosystem': ecosystem})
+
     def get_distro_packages(self, distro: str) -> set[str]:
         """Returns a list of packages for a distribution."""
         items = self.get_paged_request_items('packages', {'distribution': distro})
@@ -106,3 +121,18 @@ class RMApi:
         resp = self.req.post(BASE_URL + 'packages/', headers=self.headers | headers,
                              data=json.dumps(data), timeout=netreq.TIMEOUT)
         resp.raise_for_status()
+
+
+class CachedRMApi(RMApi):
+    """Class that caches read-only API calls."""
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        # Initialize the cache here to avoid memory leaks (see flake8 issue B019)
+        self.get_distro_package_info = functools.lru_cache(maxsize=10000)(
+            super().get_distro_package_info)
+        self.find_project = functools.lru_cache(maxsize=10000)(super().find_project)
+        self.find_project_by_ecosystem = functools.lru_cache(maxsize=10000)(
+            super().find_project_by_ecosystem)
+        self.get_distro_packages = functools.lru_cache(maxsize=10000)(
+            super().get_distro_packages)
