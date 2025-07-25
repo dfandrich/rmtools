@@ -110,6 +110,10 @@ Anitya project. This will not cause packages to be added to the incorrect
 projects but could rather cause a package to be skipped due to an insufficient
 match.
 
+URLs given on the input are checked to see if they redirect, unless the
+`--no-redirect-check` option is given (or `--no-external-match`). The
+redirected location is matched just like the original URL.
+
 Some projects appear more than once in Anitya. If such a duplicate is found,
 the package is skipped since it's not clear which would be the preferred one.
 

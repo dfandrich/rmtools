@@ -10,6 +10,7 @@ from typing import Optional
 from urllib import parse
 
 from rmtools import argparsing
+from rmtools import external
 from rmtools import hostingapi
 from rmtools import rmapi
 
@@ -47,8 +48,11 @@ PYTHONHOSTED_MATCH_RE = re.compile(r'//(?:files\.pythonhosted\.org|pypi\.python\
 # Match a pythonhosted home page link to its PyPi homepage URL
 PYTHONHOSTED_HOME_MATCH_RE = re.compile(r'//pythonhosted\.org/([^/#?]+)')
 
+# Match a rubygems URL that contains a gem filename
+RUBYGEMS_GEM_MATCH_RE = re.compile(r'^//rubygems\.org/(?:gems|downloads)/([-\w]+)-\d[\w.]*\.gem$')
+
 # Match a rubygems URL that contains a version number (probably erroneously)
-RUBYGEMS_VER_STRIP_RE = re.compile(r'^(//rubygems\.org/gems/[^/#?]+)')
+RUBYGEMS_VER_STRIP_RE = re.compile(r'^//rubygems\.org/gems/([^/#?]+)')
 
 # Map CPAN URLs to new location
 CPAN_MATCH_RE = re.compile(r'^//search\.cpan\.org/dist/([^/#?]+)(/)?$')
@@ -95,6 +99,9 @@ MAVENDL_MATCH_RE = re.compile(r'^//repo1\.maven\.org/maven2/(.+)/([^/]+)/((maven
 # Match the maven download page root URL
 MAVEN_MATCH_RE = re.compile(r'^//repo1\.maven\.org/maven2/(.+)/([^/]+)(/)?$')
 
+# Match a crates.io crate download URL
+CRATESIODL_MATCH_RE = re.compile(r'^//crates\.io/api/v1/crates/([^/#?]+)')
+
 # Match a download archive link that repeats the project name in the download URL
 DOWNLOAD_ARCHIVE_STRIP_RE = re.compile(r'^(//.*/([^/]{3,}))/([0-9.]+/)?\2-\d[\w.]*\.(tar|zip|lzh|rar|cab|tgz|tbz|txz|jar)(\.\w{1,5})?$')
 
@@ -133,6 +140,7 @@ def canonicalize_url(url: str, strip_scheme: bool = True) -> str:
     # - maybe map metacpan.org/module/Search::Xapian to metacpan.org/dist/Search-Xapian
     # - X.gitlab.io/Y
     # https://central.sonatype.org/ == https://search.maven.org/
+    # - https://rubygems.org/gems/X.gem and https://rubygems.org/downloads/X.gem
     url = url.rstrip('/')
     url = (url.removesuffix('/index.html').removesuffix('/index.htm').removesuffix('/index.asp')
            .removesuffix('/index.php').removesuffix('/index.jsp').removesuffix('.git'))
@@ -173,8 +181,8 @@ def canonicalize_url(url: str, strip_scheme: bool = True) -> str:
         return scheme + f'//pypi.org/project/{module}'
     if r := PYPI_VER_STRIP_RE.search(url):
         return scheme + r.group(1).replace('_', '-')
-    if r := RUBYGEMS_VER_STRIP_RE.search(url):
-        return scheme + r.group(1)
+    if (r := RUBYGEMS_GEM_MATCH_RE.search(url)) or (r := RUBYGEMS_VER_STRIP_RE.search(url)):
+        return scheme + f'//rubygems.org/gems/{r[1]}'
     if r := CPAN_MATCH_RE.search(url):
         return scheme + f'//metacpan.org/dist/{r[1]}'
     if r := METAREL_MATCH_RE.search(url):
@@ -195,6 +203,8 @@ def canonicalize_url(url: str, strip_scheme: bool = True) -> str:
         group = '.'.join(r.group(1).split('/'))
         artifact = r.group(2)
         return scheme + f'//central.sonatype.com/artifact/{group}/{artifact}'
+    if r := CRATESIODL_MATCH_RE.search(url):
+        return scheme + f'//crates.io/crates/{r[1]}'
 
     # This is a generic match that should be last
     if r := DOWNLOAD_ARCHIVE_STRIP_RE.search(url):
@@ -232,7 +242,7 @@ def match_project_url(url1: str, url2: str) -> bool:
 def url_ecosystem(url: str) -> str:
     """Returns the ecosystem of the given canonicalized package URL.
 
-    These ecosystems don't necessarily map exactly the same way as Anity's do. In particular, an
+    These ecosystems don't necessarily map exactly the same way as Anitya's do. In particular, an
     unrecognized URL returns an empty string instead of the URL itself.
     """
     _, netloc, _, _, _ = parse.urlsplit(url)
@@ -401,10 +411,6 @@ class ExternalComparer:
                 unique.append(proj)
                 unique_ids.add(proj['id'])
         return unique
-        # TODO:
-        # - check URLs for HTTP redirects
-        # - retrieve more Project/Homepage
-        # - retrieve Project/Download links, if appropriate
 
 
 def main():
@@ -451,6 +457,11 @@ def main():
         action=argparse.BooleanOptionalAction,
         default=True,
         help='Look harder for matching projects by contacting other servers')
+    parser.add_argument(
+        '--redirect-check',
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help='See if the URLs redirect elsewhere (only valid with --external-match)')
     args = parser.parse_args()
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO if args.verbose else logging.WARNING,
@@ -470,7 +481,8 @@ def main():
 
     logging.info('Found %d existing packages for distro %s', len(existing), args.distro)
 
-    external = ExternalComparer(gh_token)
+    externalcomp = ExternalComparer(gh_token)
+    redirectchk = external.ExternalAPI()
 
     # Read from input file: project, package, Homepage URL, another URL
     # Arguments can be quoted to embed spaces
@@ -518,7 +530,10 @@ def main():
             # No matches, but there were projects found.
             # Do an extended comparison to try harder to find a match.
             for url in urls:
-                matches.extend(external.compare(url, projects))
+                matches.extend(externalcomp.compare(url, projects))
+                if args.redirect_check and (redir := redirectchk.get_redirect(url)):
+                    logging.debug('Redirected to %s', redir)
+                    matches.extend(externalcomp.compare(redir, projects))
 
         # Dedupe matches, since more than one input URL could match
         matchset = frozenset(proj['id'] for proj in matches)

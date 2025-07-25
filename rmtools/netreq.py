@@ -3,6 +3,8 @@
 from typing import Optional
 
 import requests
+# For use by callers
+from requests import exceptions   # noqa: F401
 
 from . import __version__ as ver
 
