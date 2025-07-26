@@ -154,10 +154,11 @@ def main() -> int:
     if 'check_packages' in conf:
         vers = check_packages(rm, conf['check_packages'], False)
 
-    # TODO: ecosystem in each entry is NOT homepage; it's an internal identifier
-    # that starts out as homepage but doesn't change as that chanes.
-    # We should do a query on rm to get the current home page for any project
-    # that will be displayed.
+    # TODO: ecosystem in each entry is NOT (necessarily) the homepage; for
+    # projects out of an ecosystem, it's an internal identifier
+    # that starts out as homepage but doesn't change as that changes.  We
+    # should really do a query on rm to get the current home page for any
+    # project that will be displayed.
     allvers = vers
 
     if 'check_packages_unstable' in conf:
