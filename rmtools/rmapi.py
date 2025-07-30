@@ -26,10 +26,12 @@ DATA_TYPE = 'application/json'
 class RMApi:
     """Class for performing requests on release-monitoring.org."""
 
-    def __init__(self, token=None):
+    def __init__(self, token: Optional[str] = None, dry_run: bool = False):
         """Initializes the release-monitoring API object.
 
-        token: optional API token
+        Args:
+            token: optional API token
+            dry_run: when True, write operations are inhibited
         """
         self.headers = {
             'Accept': DATA_TYPE,
@@ -39,6 +41,7 @@ class RMApi:
             self.headers.update({'Authorization': 'Token ' + token})
 
         self.req = netreq.Session()
+        self.dry_run = dry_run
 
     def get_paged_request_items(self, path: str, params: dict[str, str]) -> list:
         """Returns the full output of a paged request."""
@@ -111,6 +114,10 @@ class RMApi:
     def create_new_package(self, distro: str, project_name: str, package_name: str,
                            project_ecosystem: str):
         """Creates a new package for a given project."""
+        if self.dry_run:
+            logging.info('Skipping create_new_package in dry run mode')
+            return
+
         headers = {'Content-Type': 'application/json'}
         data = {
             'distribution': distro,
@@ -119,6 +126,44 @@ class RMApi:
             'project_ecosystem': project_ecosystem
         }
         resp = self.req.post(BASE_URL + 'packages/', headers=self.headers | headers,
+                             data=json.dumps(data), timeout=netreq.TIMEOUT)
+        resp.raise_for_status()
+
+    def create_new_project(self, project_name: str, url: str, backend: str,
+                           version_url: Optional[str], version_prefix: str, prerelease: str):
+        """Creates a new package for a given project."""
+        if self.dry_run:
+            logging.info('Skipping create_new_project in dry run mode')
+            return
+
+        headers = {'Content-Type': 'application/json'}
+        data = {
+            'name': project_name,
+            'homepage': url,
+            'backend': backend,
+            'version_url': version_url if version_url else None,
+            'version_scheme': 'RPM',
+            'version_prefix': version_prefix if version_prefix else None,
+            'pre_release_filter': prerelease if prerelease else None,
+        }
+        resp = self.req.post(BASE_URL + 'projects/', headers=self.headers | headers,
+                             data=json.dumps(data), timeout=netreq.TIMEOUT)
+        resp.raise_for_status()
+
+    def scan_project_versions(self, project_name: str, url: str, releases_only: bool):
+        """Triggers a scan for new versions for a given project."""
+        if self.dry_run:
+            logging.info('Skipping scan_project_versions in dry run mode')
+            return
+
+        headers = {'Content-Type': 'application/json'}
+        data = {
+            'name': project_name,
+            'homepage': url,
+            'releases_only': releases_only,
+            'dry_run': False,
+        }
+        resp = self.req.post(BASE_URL + 'versions/', headers=self.headers | headers,
                              data=json.dumps(data), timeout=netreq.TIMEOUT)
         resp.raise_for_status()
 

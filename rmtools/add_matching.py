@@ -19,7 +19,7 @@ from rmtools import rmapi
 MATCH_SCHEME_RE = re.compile(r'^[-+.a-zA-Z0-9]+:')
 
 # Match a Sourceforge download page URL
-SF_DOWNLOAD_MATCH_RE = re.compile(r'^//(?:download|downloads|prdownloads)\.sourceforge\.net/(?:project/)?([^/#?]+)')
+SF_DOWNLOAD_MATCH_RE = re.compile(r'^//(?:download|downloads|prdownloads)\.(?:sourceforge|sf)\.net/(?:project/)?([^/#?]+)')
 
 # Match any Sourceforge home page URL
 SF_HOMEPAGE_MATCH_RE = re.compile(r'^//([^/.]+)\.sourceforge\.(net|io)(/.*)?$')
@@ -35,6 +35,9 @@ GH_MATCH_RE = re.compile(r'^(//github\.com/[^/#?]+/[^/#?]+)')
 
 # Match a github.io home page URL
 GIO_HOMEPAGE_MATCH_RE = re.compile(r'^//([^/.]+)\.github\.io/([^/#?]+)')
+
+# Match a gitlab URL
+GL_MATCH_RE = re.compile(r'^(?P<domain>//gitlab\.com/)(((?P<path1>[^/#?]+/[^/#?]+)(/)?$)|((?P<path2>[^/#?]+/[^/#?]+)/-/))')
 
 # Map Python PyPi URLs to new location
 PYPIPY_MATCH_RE = re.compile(r'^//pypi\.python\.org/(?:pypi|project)/([^/#?]+)')
@@ -175,6 +178,9 @@ def canonicalize_url(url: str, strip_scheme: bool = True) -> str:
         if url.endswith('.xhtml'):
             return scheme + url.removesuffix('.xhtml')
         return scheme + url
+    # TODO: handle gitlab.com multi-level namespaces (if possible)
+    if r := GL_MATCH_RE.search(url):
+        return scheme + r.group('domain') + (r.group('path1') or '') + (r.group('path2') or '')
     if ((r := PYPIPY_MATCH_RE.search(url)) or (r := PYTHONHOSTED_MATCH_RE.search(url))
             or (r := PYTHONHOSTED_HOME_MATCH_RE.search(url))):
         module = r.group(1).replace('_', '-')
@@ -501,6 +507,14 @@ def main():
             continue
         project, package = lineparts[:2]
         urls = lineparts[2:]
+
+        if parse.urlparse(project).scheme:
+            logging.warning('Invalid project name (looks like URL): %s', project)
+            continue
+
+        if parse.urlparse(package).scheme:
+            logging.warning('Invalid package name (looks like URL): %s', package)
+            continue
 
         logging.info('Next project: %s', project)
         if package in existing:

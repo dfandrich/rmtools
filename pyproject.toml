@@ -75,6 +75,8 @@ dev = [
 check-latest-versions = "rmtools.check_latest_versions:main"
 add-matching = "rmtools.add_matching:main"
 find-project = "rmtools.find_project:main"
+create-project = "rmtools.create_project:main"
+metadata-parse = "rmtools.metadata_parse:main"
 
 [tool.setuptools]
 packages = ["rmtools"]

@@ -16,11 +16,15 @@ JSON_DATA_TYPE = 'application/json'
 XML_DATA_TYPE = 'application/xml'
 HTML_DATA_TYPE = 'text/html'
 
+# See https://docs.github.com/en/rest?apiVersion=2022-11-28
 GH_API_URL = 'https://api.github.com'
 GH_BASE_URL = GH_API_URL + '/repos/{owner}/{repo}'
+GH_RELEASES_URL = GH_BASE_URL + '/releases'
+GH_TAGS_URL = GH_BASE_URL + '/tags'
 GH_API_VERSION = '2022-11-28'
 GH_DATA_TYPE = 'application/vnd.github+json'
 
+# See https://wiki.python.org/moin/PyPIJSON
 PYPI_API_URL = 'https://pypi.org/pypi'
 PYPI_BASE_URL = PYPI_API_URL + '/{project}/json'
 
@@ -30,6 +34,7 @@ CRATES_BASE_URL = CRATES_API_URL + '/crates/{crate}'
 CPAN_API_URL = 'https://fastapi.metacpan.org/v1'
 CPAN_BASE_URL = CPAN_API_URL + '/release/{module}'
 
+# See https://sourceforge.net/api-docs/
 SF_API_URL = 'https://sourceforge.net/rest'
 SF_BASE_URL = SF_API_URL + '/p/{project}'
 
@@ -49,9 +54,11 @@ MAVEN_SEARCH_BASE_URL = 'https://search.maven.org/solrsearch'
 MAVEN_SEARCH_URL = MAVEN_SEARCH_BASE_URL + '/select?q=g:{group}%20AND%20a:{artifact}&rows=9&wt=json'
 MAVEN_USE_SEARCH = True
 
+# See https://docs.gitlab.com/api/rest/
 GITLAB_API_URL = 'https://gitlab.com/api/v4'
 GITLAB_BASE_URL = GITLAB_API_URL + '/projects/{namespace}%2F{project}'
 GITLAB_COM_PAGES_URL = 'https://{namespace}.gitlab.io/{project}'
+GITLAB_TAGS_URL = GITLAB_BASE_URL + '/repository/tags'
 
 # Note this is a two-stage template: first state is to replace the domain only
 PRIVATE_GITLAB_API_URL = 'https://{domain}/api/v4'
@@ -67,6 +74,9 @@ GNUSV_BASE_URL = GNUSV_API_URL + '/projects/{project}'
 
 NONGNUSV_API_URL = 'https://savannah.nongnu.org'
 NONGNUSV_BASE_URL = NONGNUSV_API_URL + '/projects/{project}'
+
+OPAM_API_URL = 'https://opam.ocaml.org/packages'
+OPAM_BASE_URL = OPAM_API_URL + '/{package}/'
 
 READTHEDOCS_API_URL = 'https://app.readthedocs.org/api/v3/'
 READTHEDOCS_BASE_URL = READTHEDOCS_API_URL + '/projects/{project}/'
@@ -212,6 +222,44 @@ def parse_savannah(html: str) -> list[str]:
     return parser.urls
 
 
+class OcamlParser(html.parser.HTMLParser):
+    """Parser for opam.ocaml.org HTML pages."""
+    def __init__(self):
+        super().__init__()
+        self.urls = []
+        self.in_th = False
+        self.in_interesting_url = False
+
+    def handle_starttag(self, tag: str, attrs):
+        self.in_th = tag == 'th'
+        if self.in_interesting_url and tag == 'a':
+            attr_dict = dict(attrs)
+            self.urls.append(attr_dict.get('href', ''))
+
+    def handle_data(self, data: str):
+        self.in_interesting_url = (self.in_th and data.strip()
+                                   in frozenset({'Homepage', 'Source  [http]', 'Source [http]'}))
+
+    def handle_endtag(self, tag: str):
+        if tag == 'tr':
+            # End of entry
+            self.in_th = False
+            self.in_interesting_url = False
+
+
+def parse_ocaml(html: str) -> list[str]:
+    """Parse a opam.ocaml.org page to extract useful URLS.
+
+    opam2web doesn't appear to offer an API for extracting this info, so screen-scrape it.
+    An alternative would be to download .opam files directly from
+    https://github.com/ocaml/opam-repository/ but we'd need to figure out which is the
+    latest version ourselves somehow.
+    """
+    parser = OcamlParser()
+    parser.feed(html)
+    return parser.urls
+
+
 class HostingAPI:
     """API to obtain project information from various project hosting sites."""
 
@@ -262,7 +310,63 @@ class HostingAPI:
             return ''
         return json.loads(resp.text)['homepage']
 
-    def _get_gitlab_url(self, base_url_tmpl: str, pages_url_tmpl: str, url: str, ) -> list[str]:
+    def get_gh_releases(self, url: str) -> list[str]:
+        """Retrieves a list of release tags for a Github project.
+
+        See https://docs.github.com/en/rest/repos/repos?apiVersion=2022-11-28#list-releases
+
+        Args:
+            url: the canonical URL for the GitHub project
+        """
+        owner, repo = self._get_generic_project_name(url)
+        if not owner or not repo or unsafe_path(owner) or unsafe_path(repo):
+            return []
+
+        headers = {'Accept': GH_DATA_TYPE,
+                   'X-GitHub-Api-Version': GH_API_VERSION,
+                   'User-Agent': netreq.USER_AGENT
+                   }
+        if self.gh_token:
+            headers['Authorization'] = 'Bearer ' + self.gh_token
+        resp = self.req.get(GH_RELEASES_URL.format(owner=owner, repo=repo), headers=headers,
+                            timeout=netreq.TIMEOUT)
+        try:
+            resp.raise_for_status()
+        except netreq.HTTPError as e:
+            logging.info('Error retrieving data for %s (%s: %s)',
+                         url, e.response.status_code, e.response.reason)
+            return []
+        return [r['tag_name'] for r in json.loads(resp.text)]
+
+    def get_gh_tags(self, url: str) -> list[str]:
+        """Retrieves a list of tags for a Github project.
+
+        See https://docs.github.com/en/rest/repos/repos?apiVersion=2022-11-28#list-repository-tags
+
+        Args:
+            url: the canonical URL for the GitHub project
+        """
+        owner, repo = self._get_generic_project_name(url)
+        if not owner or not repo or unsafe_path(owner) or unsafe_path(repo):
+            return []
+
+        headers = {'Accept': GH_DATA_TYPE,
+                   'X-GitHub-Api-Version': GH_API_VERSION,
+                   'User-Agent': netreq.USER_AGENT
+                   }
+        if self.gh_token:
+            headers['Authorization'] = 'Bearer ' + self.gh_token
+        resp = self.req.get(GH_TAGS_URL.format(owner=owner, repo=repo), headers=headers,
+                            timeout=netreq.TIMEOUT)
+        try:
+            resp.raise_for_status()
+        except netreq.HTTPError as e:
+            logging.info('Error retrieving data for %s (%s: %s)',
+                         url, e.response.status_code, e.response.reason)
+            return []
+        return [r['name'] for r in json.loads(resp.text)]
+
+    def _get_gitlab_url(self, base_url_tmpl: str, pages_url_tmpl: str, url: str) -> list[str]:
         """Retrieves the home page URL set for a Gitlab project.
 
         See https://docs.gitlab.com/api/rest/
@@ -321,6 +425,41 @@ class HostingAPI:
         base_api_tmpl = PRIVATE_GITLAB_BASE_URL.format(domain=domain)
         base_pages_tmpl = PRIVATE_GITLAB_PAGES_URL.format(domain=domain)
         return self._get_gitlab_url(base_api_tmpl, base_pages_tmpl, url)
+
+    def _get_gitlab_tags(self, tags_url: str, url: str) -> list[str]:
+        """Retrieves a list of tags for a Gitlab project.
+
+        See https://docs.gitlab.com/api/rest/
+
+        Args:
+            tags_url: tags API URL
+            url: the canonical URL for the Gitlab project
+        """
+        namespace, project = self._get_generic_project_name(url)
+        if not namespace or not project or unsafe_path(namespace) or unsafe_path(project):
+            return []
+
+        headers = {'Accept': JSON_DATA_TYPE,
+                   'User-Agent': netreq.USER_AGENT
+                   }
+        resp = self.req.get(tags_url.format(namespace=namespace, project=project),
+                            headers=headers, timeout=netreq.TIMEOUT)
+        try:
+            resp.raise_for_status()
+        except netreq.HTTPError as e:
+            logging.info('Error retrieving data for %s (%s: %s)',
+                         url, e.response.status_code, e.response.reason)
+            return []
+
+        return [entry['name'] for entry in json.loads(resp.text)]
+
+    def get_gitlab_com_tags(self, url: str) -> list[str]:
+        """Retrieves a list of tags for a Gitlab.com project.
+
+        Args:
+            url: the canonical URL for the project
+        """
+        return self._get_gitlab_tags(GITLAB_TAGS_URL, url)
 
     def get_shortpages_gitlab_url(self, url: str) -> list[str]:
         """Retrieves the home page URL set for a standardized private Gitlab project.
@@ -679,6 +818,29 @@ class HostingAPI:
         """
         return self._get_savannah_url(NONGNUSV_BASE_URL, url)
 
+    def get_ocaml_url(self, url: str) -> list[str]:
+        """Retrieves the home page and download links for a opam entry.
+
+        Args:
+            url: the canonical URL for the project
+        """
+        _, package = self._get_generic_project_name(url)
+        if not package or unsafe_path(package):
+            return []
+
+        headers = {'Accept': HTML_DATA_TYPE,
+                   'User-Agent': netreq.USER_AGENT
+                   }
+        resp = self.req.get(OPAM_BASE_URL.format(package=package), headers=headers,
+                            timeout=netreq.TIMEOUT)
+        try:
+            resp.raise_for_status()
+        except netreq.HTTPError as e:
+            logging.info('Error retrieving data for %s (%s: %s)',
+                         url, e.response.status_code, e.response.reason)
+            return []
+        return parse_ocaml(resp.text)
+
     def get_readthedocs_url(self, url: str) -> list[str]:
         """Parse a ReadTheDocs page to extract useful URLS.
 
@@ -780,6 +942,9 @@ class HostingAPI:
 
         if netloc == 'savannah.nongnu.org':
             return frozenset(filter(None, self.get_nongnusavannah_url(url)))
+
+        if netloc == 'opam.ocaml.org':
+            return frozenset(filter(None, self.get_ocaml_url(url)))
 
         if netloc.endswith('.readthedocs.org') or netloc.endswith('.readthedocs.io'):
             return frozenset(filter(None, self.get_readthedocs_url(url)))

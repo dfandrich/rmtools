@@ -102,6 +102,17 @@ class ExternalAPI:
 
         return ''
 
+    def check_url(self, url: str) -> bool:
+        """See if the URL is reachable or redirects."""
+        # Just ignore any error contacting the site; it's just best effort
+        with contextlib.suppress(netreq.exceptions.RequestException):
+            headers = {'User-Agent': netreq.USER_AGENT
+                       }
+            resp = self.req.head(url, headers=headers, timeout=netreq.TIMEOUT)
+            return resp.status_code // 100 in frozenset({2, 3})
+
+        return False
+
 
 if __name__ == '__main__':
     # Debugging tool
