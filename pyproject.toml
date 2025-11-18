@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rmtools"
-description = "Tools to use with https://release-monitoring.org/ (anitya)"
+description = "Tools to use with https://release-monitoring.org/ (Anitya)"
 version = "0.1dev"
 readme = "README.md"
 authors = [{name = "Dan Fandrich", email = "dan@coneharvesters.com"}]
@@ -20,20 +20,20 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Users",
     "Natural Language :: English",
     "Topic :: Utilities",
     "Typing :: Typed",
 ]
-requires-python = ">=3.9,<3.13"
-# The version dependencies listed are conservative and reflect ones that have
-# actually been tested
+requires-python = ">=3.9"
 dependencies = [
-    "requests >= 2.25.1, <= 2.32.4",
-    "PyYAML == 5.3.1, <= 6.0.1",
+    "requests >= 2.25.1, < 2.33.0",
+    "PyYAML == 5.3.1, < 7",
 ]
 
 [project.optional-dependencies]
@@ -69,7 +69,7 @@ dev = [
 ]
 
 [project.urls]
-#Homepage = "https://github.com/dfandrich/rmtools"
+homepage = "https://github.com/dfandrich/rmtools"
 
 [project.scripts]
 check-latest-versions = "rmtools.check_latest_versions:main"
@@ -83,6 +83,7 @@ packages = ["rmtools"]
 license-files = ["COPYING"]
 include-package-data = false
 
+# flake8-pyproject must be installed for flake8 to use these settings
 [tool.flake8]
 ignore = ["W503", "E741", "E501", "D102", "D103", "D107", "B001", "IFS001", "NQA102", "PAR101",
           "PAR103", "PIE803", "PLU002", "SFS301", "SIM115", "SIM904"]
