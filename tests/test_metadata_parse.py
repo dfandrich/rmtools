@@ -16,7 +16,8 @@ class TestRegexes(unittest.TestCase):
             ('lib345-1.3.0-22.mga9.src.rpm', 'lib345'),
         ]:
             with self.subTest(pkg=pkg, name=name):
-                self.assertEqual(name, metadata_parse.PACKAGE_RE.search(pkg).group(1))
+                r = metadata_parse.PACKAGE_RE.search(pkg)
+                self.assertEqual(name, r and r.group(1))
 
 
 class TestStripPrefixes(unittest.TestCase):
