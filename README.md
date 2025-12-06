@@ -5,16 +5,17 @@ service (a.k.a. Anitya) that tracks software releases.
 
 ## Installation
 
-Run this to install the program from the source tree:
+Run this to install the program from the current git master branch:
+
+    python -m pip install https://github.com/dfandrich/rmtools/archive/refs/heads/master.tar.gz
+
+Or, this to install from the source tree:
 
     python3 -m pip install .
 
-Run this to run the unit test suite:
+Run one of these commands to run the unit test suite:
 
     pytest
-
-or
-
     python3 -m unittest
 
 ## Use
