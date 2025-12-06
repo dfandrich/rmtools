@@ -33,10 +33,13 @@ classifiers = [
 requires-python = ">=3.9"
 dependencies = [
     "requests >= 2.25.1, < 2.33.0",
-    "PyYAML == 5.3.1, < 7",
+    "PyYAML >= 5.3.1, < 7",
 ]
 
 [project.optional-dependencies]
+test = [
+    "pytest >= 6, < 10"
+]
 dev = [
     "flake8 >= 5.0.4, < 8",
     "flake8-assertive",
