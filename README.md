@@ -345,4 +345,8 @@ These are the project hosts for which creation is supported:
 This program is Copyright © 2023–2025 by Daniel Fandrich. It is distributed
 under the terms of the GNU General Public License as published by the Free
 Software Foundation; either version 2 of the License, or (at your option) any
-later version.
+later version. As a special exception, when used under the terms of the GPL
+version 2 only, this program may incorporate works licensed under the Apache
+License, Version 2.0, maintaining that license's patent termination and
+indemnification provisions only on the portion of the work incorporated under
+the terms of that license.
