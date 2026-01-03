@@ -136,7 +136,7 @@ def parse_pom(xml: str) -> list[str]:
 
     # Load the properties needed for ${...} template substitution
     # Some additional properties are added below from common tags
-    properties = {}
+    properties = {}  # type: dict[str, str]
     if (props := root.find('x:properties', ns)) is not None:
         for prop in props:
             key = strip_xmlns(prop.tag)
@@ -144,7 +144,7 @@ def parse_pom(xml: str) -> list[str]:
                 properties[key] = prop.text
 
     # Get the URLs we are here for
-    urls = []
+    urls = []  # type: list[str]
     if (tag := root.find('x:url', ns)) is not None:
         urls.append(tag.text)
         properties['project.url'] = tag.text
