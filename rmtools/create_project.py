@@ -372,7 +372,7 @@ def main():
         format='%(filename)s: %(message)s')
 
     if args.add_package and not args.distro:
-        logging.error('--distro is required with --add-package')
+        parser.error('--distro is required with --add-package')
 
     rm = rmapi.RMApi(args.token_file.read().strip(), args.dry_run)
     args.token_file.close()
