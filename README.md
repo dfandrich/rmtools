@@ -58,18 +58,18 @@ relies on two bits of information supplied by you: the r-m project name and its
 matching URL. If the provided URL matches the project in r-m, the package is
 added to the project. The URLs in r-m are generally quite specific, whereas the
 URLs used in some distributions might be more generic (e.g. all Gnome
-applications might have the URL https://www.gnome.org/). In such cases, the
+applications might have the URL `https://www.gnome.org/`). In such cases, the
 association will NOT be made to avoid the possibility of a false association.
 
 3. Run `add-matching` multiple times with manipulated URLs. To use the
-Gnome example, if you know that all your packages with https://www.gnome.org/
+Gnome example, if you know that all your packages with `https://www.gnome.org/`
 as the URL are part of the Gnome project (as one would hope), and that the
 package names are the same as the Gnome project's names, then the problem of
 the URLs not matching can be solved by changing the URLs fed to `add-matching`.
 Rather than using the URL found in the package metadata, new ones can be
 synthesized to match what's in r-m and to force a match. In the Gnome example,
 many Gnome applications in r-m use a URL of the form
-https://wiki.gnome.org/Apps/<projectname> which can be easily created with a
+`https://wiki.gnome.org/Apps/<projectname>` which can be easily created with a
 shell script. This step can be effective when done multiple times and on
 multiple subsets of similar packages. However, be absolutely sure of the
 provenance of your packages since adding this kind of manipulated data can
@@ -235,20 +235,20 @@ requires a match on another piece of metadata before a package is added. This
 metadata is nominally the URL provided in the input, but if that doesn't
 directly match the Anitya Homepage (with a bit of a fuzz factor), a deeper
 check is needed. `add-matching` does not look for alternate project names.
-Each package name that is added is written to stdout.
+Each package name that is successfully added to r-m is written to stdout.
 
 If the URL is for a known site that supplies additional metadata, that site is
 contacted to retrieve it. For example, if the input data or the Anitya project
-data contains a PyPi URL, PyPi will be contacted to retrieve its idea of the
+data contains a PyPI URL, PyPI will be contacted to retrieve its idea of the
 project home page and source code repository URL. If one of those match, then
 the project is considered to be the right one and that package is added. This
 external lookup process is NOT done recursively.
 
 If the `--no-external-match` option is given, external sites are not contacted
 to obtain more project information to help the match algorithm find the correct
-Anitya project. This will not cause packages to be added to the incorrect
-projects but could rather cause a package to be skipped due to an insufficient
-match (false negative).
+Anitya project. This will not cause packages to be added to incorrect projects
+but could rather cause a package to be skipped due to an insufficient match
+(false negative).
 
 URLs given on the input are checked to see if they redirect, unless the
 `--no-redirect-check` option is given (or `--no-external-match`). The
@@ -352,7 +352,7 @@ These are the project hosts for which creation is supported:
 
 ## License
 
-This program is Copyright © 2023–2025 by Daniel Fandrich. It is distributed
+This program is Copyright © 2023–2026 by Daniel Fandrich. It is distributed
 under the terms of the GNU General Public License as published by the Free
 Software Foundation; either version 2 of the License, or (at your option) any
 later version. As a special exception, when used under the terms of the GPL
