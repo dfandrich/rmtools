@@ -450,14 +450,19 @@ def main():
         default=4,  # arbitrarily set to try to put a negligible load on the server
         help='Delay between successive entries (seconds)')
     parser.add_argument(
+        '--load-existing',
+        type=argparsing.ExpandUserFileName('r'),
+        help='File from which to load existing packages instead of asking Anitya')
+    parser.add_argument(
         '--dump-existing',
-        type=argparsing.ExpandUserFileName('w'),
+        # File is opened for appending only right now so it can be loaded first
+        type=argparsing.ExpandUserFileName('a'),
         help='File in which to write packages existing in Anitya')
     parser.add_argument(
         '--existence-check',
         action=argparse.BooleanOptionalAction,
         default=True,
-        help='Check for a package already existing in a project by downloading the complete list')
+        help='Check for packages already existing in a project')
     parser.add_argument(
         '--external-match',
         action=argparse.BooleanOptionalAction,
@@ -482,8 +487,13 @@ def main():
     else:
         gh_token = None
 
-    # Download existing entries to use for skipping
-    existing = rm.get_distro_packages(args.distro) if args.existence_check else set()
+    # Get list of packages already in Anitya to use for skipping
+    if args.load_existing:
+        with args.load_existing as f:
+            existing = {p.strip() for p in f.readlines()}
+    else:
+        # Download existing entries
+        existing = rm.get_distro_packages(args.distro) if args.existence_check else set()
 
     logging.info('Found %d existing packages for distro %s', len(existing), args.distro)
 
@@ -573,6 +583,9 @@ def main():
 
     if args.dump_existing:
         with args.dump_existing as f:
+            # The file was not truncated at open in case it needed to be loaded first.
+            # Empty it now before writing it.
+            f.truncate(0)
             pkgs = list(existing)
             pkgs.sort()
             f.write('\n'.join(package for package in pkgs))
