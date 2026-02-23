@@ -270,6 +270,11 @@ for authenticated requests is several orders of magnitude larger than the
 unauthenticated limit. Visit https://github.com/settings/personal-access-tokens
 to create such a token.
 
+Sometimes a distro package is provided (usually an additional one for
+compatibility reasons) on a specific version of a project (e.g. gtk+2.0,
+autoconf2.13). These packages will never be updated from upstream, so it is
+pointless to add such packages to Anitya, so don't do it.
+
 ### find-project
 
 This program searches for existing projects matching a package. Run it like:
@@ -337,6 +342,11 @@ Be careful using this tool. Making a mistake currently means manual work by the
 release-monitoring.org sysadmins to delete a project. Be sure the project name
 that will be created is appropriate for Anitya and makes sense for most users
 and that the project doesn't already exist under another name.
+
+Sometimes a distro package is provided (usually an additional one for
+compatibility reasons) on a specific version of a project (e.g. gtk+2.0,
+autoconf2.13). These projects will never see a new release, so it is pointless
+to create a new matching project in Anitya, so don't do it.
 
 These are the project hosts for which creation is supported:
 
