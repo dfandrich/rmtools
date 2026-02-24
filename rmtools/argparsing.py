@@ -1,5 +1,6 @@
 """Functions to use for argument parsing."""
 
+import argparse
 import os
 
 
@@ -17,4 +18,7 @@ class ExpandUserFileName:
 
     def __call__(self, filename: str):
         fn = os.path.expanduser(filename)
-        return open(fn, self.mode)
+        try:
+            return open(fn, self.mode)
+        except OSError as e:
+            raise argparse.ArgumentTypeError(e.strerror) from e
