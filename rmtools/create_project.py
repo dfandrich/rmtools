@@ -50,7 +50,7 @@ class ProjectData:
     ecosystem: str = ''
 
 
-def strip_project_prefix(project_name: str, strip_prefix: list[str]):
+def strip_project_prefix(project_name: str, strip_prefix: list[str]) -> str:
     """Remove the first matching prefix from the name."""
     for strip in strip_prefix:
         stripped = project_name.removeprefix(strip)

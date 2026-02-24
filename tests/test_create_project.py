@@ -112,6 +112,11 @@ class TestStripPrereleaseSuffix(unittest.TestCase):
         self.assertEqual(['v-1.2.3', 'v-99', 'v-00001', 'v-1', 'v-99.3.post12', 'v-0', 'v-1', 'v-2',
                           'v-3', 'v-5'], rel)
 
+    def test_strip_prerelease_suffix_none(self):
+        rel = ['v-1', 'x-2', 'y-3']
+        suffix = create_project.strip_prerelease_suffix(rel)
+        self.assertEqual('', suffix)
+
 
 class TestFindVersionPrefix(unittest.TestCase):
     """Test find_version_prefix."""
@@ -140,3 +145,19 @@ class TestFindVersionPrefix(unittest.TestCase):
         rel = ['XYZ-1.2.3', 'XYZ-99', 'XYZ-0000.1']
         stripped = create_project.find_version_prefix(rel, ['abc', 'XYZ-', '_'])
         self.assertEqual('XYZ-', stripped)
+
+
+class TestProjectPrefix(unittest.TestCase):
+    """Test strip_project_prefix."""
+
+    def test_strip_project_prefix(self):
+        prefixes = ['abc-', 'xxx-']
+        self.assertEqual('none', create_project.strip_project_prefix('none', prefixes))
+        self.assertEqual('def', create_project.strip_project_prefix('abc-def', prefixes))
+        self.assertEqual('yyy', create_project.strip_project_prefix('xxx-yyy', prefixes))
+        self.assertEqual('xxx-123', create_project.strip_project_prefix('abc-xxx-123', prefixes))
+        self.assertEqual('', create_project.strip_project_prefix('abc-', prefixes))
+        self.assertEqual('def', create_project.strip_project_prefix('def', prefixes))
+
+    def test_strip_project_prefix_none(self):
+        self.assertEqual('abc', create_project.strip_project_prefix('abc', []))

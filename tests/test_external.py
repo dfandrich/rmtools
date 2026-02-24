@@ -21,3 +21,18 @@ class TestParseRefreshUrl(unittest.TestCase):
         ]:
             with self.subTest(content=content, url=url):
                 self.assertEqual(url, external.parse_refresh_url(content))
+
+
+class TestParseRefresh(unittest.TestCase):
+    """Test parse_refresh."""
+
+    def test_parse_refresh(self):
+        self.assertEqual(
+            'http://example.com/xyzzy',
+            external.parse_refresh(
+                """
+                <html><head>
+                <meta http-equiv="refresh" content="123; url=http://example.com/xyzzy">
+                </head></html>
+                """
+            ))

@@ -1,5 +1,6 @@
 """Test hostingapi."""
 
+import textwrap
 import unittest
 
 from rmtools import hostingapi
@@ -99,3 +100,93 @@ class TestGetGenericProjectName(unittest.TestCase):
                          ha._get_generic_project_name('https://github.com/too/many/paths'))
         self.assertEqual(('', ''),
                          ha._get_generic_project_name('https://github.com/too-few-paths'))
+
+
+class TestParsePom(unittest.TestCase):
+    """Test parse_pom."""
+
+    def test_parse_pom(self):
+        content = textwrap.dedent(r"""<?xml version='1.0' encoding='UTF-8'?>
+            <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+              <properties>
+                <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+              </properties>
+              <scm>
+                <connection>scm:git:https://github.com/example/example.git</connection>
+                <url>https://github.com/example/example/</url>
+                <tag>xyzzy</tag>
+              </scm>
+              <licenses>
+                <license>
+                  <name>MIT License</name>
+                  <url>http://www.opensource.org/licenses/mit-license.php</url>
+                  <distribution>repo</distribution>
+                </license>
+              </licenses>
+              <dependencies>
+                <dependency>
+                  <groupId>junit</groupId>
+                  <artifactId>junit</artifactId>
+                  <version>4.13.1</version>
+                  <scope>test</scope>
+                </dependency>
+              </dependencies>
+              <artifactId>art</artifactId>
+              <version>1.2.3</version>
+              <url>https://www.example.com/rmtools/v${project.version}/${project.artifactId}/${project.scm.tag}?enc=${project.build.sourceEncoding}</url>
+            </project>
+        """)
+        self.assertCountEqual(
+            hostingapi.parse_pom(content),
+            ['https://github.com/example/example/',
+             'https://www.example.com/rmtools/v1.2.3/art/xyzzy?enc=UTF-8'])
+
+
+class TestParseLpRdf(unittest.TestCase):
+    """Test parse_lp_rdf."""
+
+    def test_parse_lp_rdf(self):
+        content = textwrap.dedent(r"""<?xml version="1.0" encoding="utf-8"?>
+            <rdf:RDF xmlns:doaml="http://ns.balbinus.net/doaml#" xmlns:foaf="http://xmlns.com/foaf/0.1/" xmlns:lp="https://launchpad.net/rdf/launchpad#" xmlns:wot="http://xmlns.com/wot/0.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+                <lp:Product>
+                <lp:homepage rdf:resource="http://example.com/prjhome"/>
+                </lp:Product>
+            </rdf:RDF>
+        """)
+        self.assertCountEqual(
+            hostingapi.parse_lp_rdf(content),
+            ['http://example.com/prjhome'])
+
+
+class TestParseSavannah(unittest.TestCase):
+    """Test parse_savannah."""
+
+    def test_parse_savannah(self):
+        content = textwrap.dedent(r"""
+            <html><body><div>
+            <a class="foo bar tabs" href="http://invalid/">Random</a>
+            <a class="foo bar tabs" href="http://more.invalid/">Other</a>
+            <a class="foo bar" href="http://another.invalid/homepage">Homepage</a>
+            <a class="foo bar tabs" href="http://invalid/not/real" />
+            <a class="foo bar tabs" href="http://example.com/prjhome">Homepage</a>
+            <a class="foo bar tabs" href="http://more2.invalid/">Final</a>
+        """)
+        self.assertCountEqual(
+            hostingapi.parse_savannah(content),
+            ['http://example.com/prjhome'])
+
+
+class TestParseOcaml(unittest.TestCase):
+    """Test parse_ocaml."""
+
+    def test_parse_ocaml(self):
+        content = textwrap.dedent(r"""
+            <html><body><table>
+            <tr><th>Something</th><td><a href="http://invalid/">not it</a></td></tr>
+            <tr><th>Homepage</th><td><a href="http://home.example.com/">yes</a></td></tr>
+            <tr><th>Source [http]</th><td><a href="http://home.example.com/code.tgz">good</a></td></tr>
+            <tr><th>Garbage</th><td><a href="http://notgood.invalid/bad.tgz">bad</a></td></tr>
+        """)
+        self.assertCountEqual(
+            hostingapi.parse_ocaml(content),
+            ['http://home.example.com/', 'http://home.example.com/code.tgz'])
