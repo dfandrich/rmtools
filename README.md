@@ -335,6 +335,12 @@ those cases the supplied project name is ignored.
 Unless `--no-add-package` is provided, the package is added to the project once
 it is created.
 
+If it can be determined, creation is skipped for projects that have been
+archived upstream or have had no updates in a long time. There is no point in
+creating a new project if it is unlikely to ever see a new release. This
+behaviour can be influenced with the `--external-check` and `--max-project-age`
+flags.
+
 For each successfully created project, the program outputs a line of the form:
 ```
 project package URL

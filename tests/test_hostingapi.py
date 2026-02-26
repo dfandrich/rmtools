@@ -1,5 +1,6 @@
 """Test hostingapi."""
 
+import datetime
 import textwrap
 import unittest
 
@@ -44,6 +45,22 @@ class TestStripXmlns(unittest.TestCase):
         ]:
             with self.subTest(tag=tag, stripped=stripped):
                 self.assertEqual(hostingapi.strip_xmlns(tag), stripped)
+
+
+class TestParseIso8601(unittest.TestCase):
+    """Test parse_iso8601."""
+
+    def test_parse_iso8601(self):
+        for text, stamp in [
+            ('2016-01-02T19:46:55Z',
+             datetime.datetime(2016, 1, 2, 19, 46, 55, tzinfo=datetime.timezone.utc)),
+            ('2016-01-02T19:46:55',
+             datetime.datetime(2016, 1, 2, 19, 46, 55, tzinfo=datetime.timezone.utc)),
+            ('2023-07-12T19:09:25.110Z',
+             datetime.datetime(2023, 7, 12, 19, 9, 25, 110000, tzinfo=datetime.timezone.utc))
+        ]:
+            with self.subTest(text=text, stamp=stamp):
+                self.assertEqual(hostingapi.parse_iso8601(text), stamp)
 
 
 class TestSubstituteElExpression(unittest.TestCase):
@@ -170,10 +187,16 @@ class TestParseSavannah(unittest.TestCase):
             <a class="foo bar tabs" href="http://invalid/not/real" />
             <a class="foo bar tabs" href="http://example.com/prjhome">Homepage</a>
             <a class="foo bar tabs" href="http://more2.invalid/">Final</a>
+            <h2>Latest News&nbsp;</h2>
+            <span class="smaller"><em>posted by <a href="/users/example">example
+            </a>, Thu 11 Feb 2010 10:29:00 PM UTC</em></span>
         """)
-        self.assertCountEqual(
-            hostingapi.parse_savannah(content),
-            ['http://example.com/prjhome'])
+
+        expected = hostingapi.ProjInfo(
+            status=hostingapi.ProjInfo.ProjStatus.UNKNOWN,
+            last_modified=datetime.datetime.fromtimestamp(1265927340, tz=datetime.timezone.utc),
+            urls=['http://example.com/prjhome'])
+        self.assertEqual(hostingapi.parse_savannah(content), expected)
 
 
 class TestParseOcaml(unittest.TestCase):
@@ -183,10 +206,13 @@ class TestParseOcaml(unittest.TestCase):
         content = textwrap.dedent(r"""
             <html><body><table>
             <tr><th>Something</th><td><a href="http://invalid/">not it</a></td></tr>
+            <tr><th>Published</th><td><time datetime="2023-11-01">Nov 1, 2023</time></td></tr>
             <tr><th>Homepage</th><td><a href="http://home.example.com/">yes</a></td></tr>
             <tr><th>Source [http]</th><td><a href="http://home.example.com/code.tgz">good</a></td></tr>
             <tr><th>Garbage</th><td><a href="http://notgood.invalid/bad.tgz">bad</a></td></tr>
         """)
-        self.assertCountEqual(
-            hostingapi.parse_ocaml(content),
-            ['http://home.example.com/', 'http://home.example.com/code.tgz'])
+        expected = hostingapi.ProjInfo(
+            status=hostingapi.ProjInfo.ProjStatus.UNKNOWN,
+            last_modified=datetime.datetime.fromtimestamp(1698796800, tz=datetime.timezone.utc),
+            urls=['http://home.example.com/', 'http://home.example.com/code.tgz'])
+        self.assertEqual(hostingapi.parse_ocaml(content), expected)

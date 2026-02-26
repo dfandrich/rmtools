@@ -369,7 +369,8 @@ class ExternalComparer:
             logging.error('External matching not yet implemented for any url available')
             return []
 
-        exturls = self.hostapi.get_project_links(canon_url)
+        extinfo = self.hostapi.get_project_info(canon_url)
+        exturls = frozenset(extinfo.urls) if extinfo else frozenset()
         if exturls:
             logging.debug('Found external project links %s', ' '.join(exturls))
         else:
@@ -387,7 +388,8 @@ class ExternalComparer:
                     return True
 
             # Now, get project links for the URL and check those against the main
-            proj_urls = self.hostapi.get_project_links(canonicalize_url(check_url))
+            proj_info = self.hostapi.get_project_info(canonicalize_url(check_url))
+            proj_urls = frozenset(proj_info.urls) if proj_info else frozenset()
             logging.debug('Proj links %s', ' '.join(proj_urls))
             for proj_url in proj_urls:
                 if match_project_url(proj_url, url):

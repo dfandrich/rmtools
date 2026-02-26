@@ -4,6 +4,7 @@ Only certain URLs will work as this is tailored for certain hosting providers.
 """
 
 import argparse
+import datetime
 import logging
 import re
 import shlex
@@ -366,6 +367,11 @@ def main():
         action=argparse.BooleanOptionalAction,
         default=True,
         help='Check that the URL is reachable before creating the project')
+    parser.add_argument(
+        '--max-project-age',
+        type=int,
+        default=5 * 365,
+        help='Maximum age of the upstream project in days above which it is not created')
     args = parser.parse_args()
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO if args.verbose else logging.WARNING,
@@ -417,12 +423,53 @@ def main():
             continue
 
         if args.external_check:
+            class SkipError(RuntimeError):
+                """Exception to skip an outer loop."""
+
+            # Check that the project on the hosting site hasn't been archived or disabled or hasn't
+            # been touched for a long time; such projects are unlikely to ever get a new release
+            # and don't need to be added to Anitya.
+            try:
+                valid_proj = False
+                for check_url in frozenset({url, src}):
+                    proj_info = host.get_project_info(add_matching.canonicalize_url(check_url))
+                    if not proj_info:
+                        logging.warning('Project cannot be found on host: %s', check_url)
+                        continue
+
+                    if proj_info.status == proj_info.ProjStatus.INVALID:
+                        logging.error('Skipping: project has been disabled on the host: %s',
+                                      check_url)
+                        raise SkipError
+
+                    if proj_info.last_modified:
+                        delta = (datetime.datetime.now(tz=datetime.timezone.utc)
+                                 - proj_info.last_modified)
+                        if delta.days > args.max_project_age:
+                            logging.error(
+                                'Skipping: project has been dormant %d days on the host: %s',
+                                delta.days, check_url)
+                            raise SkipError
+
+                    valid_proj = True
+            except SkipError:
+                # Skip this project and go on to the next
+                time.sleep(args.delay)
+                continue
+
+            if not valid_proj:
+                logging.error('Skipping: project could not be found on host')
+                time.sleep(args.delay)
+                continue
+
+            # Do a basic existance check of each URL
             if not ex.check_url(url):
                 logging.error('Skipping: homepage URL is not reachable: %s', url)
+                time.sleep(args.delay)
                 continue
 
             if not ex.check_url(src):
-                logging.warning('Source URL is not reachable (ignoring): %s', url)
+                logging.warning('Source URL is not reachable (ignoring): %s', src)
 
         proj = strip_project_prefix(proj, args.strip_project_prefix)
         newproject = ap.add_project(ProjectData(proj, pkg, url, src))
@@ -432,6 +479,7 @@ def main():
             if args.add_package:
                 rm.create_new_package(
                     args.distro, newproject.project, newproject.package, newproject.ecosystem)
+
         time.sleep(args.delay)
 
 

@@ -1,12 +1,18 @@
 """API to access external code hosting providers."""
 
+import contextlib
+import datetime
+import enum
 import functools
 import html.parser
 import json
+import locale
 import logging
 import re
 import sys
+import threading
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from typing import Optional
 from urllib import parse
 
@@ -37,6 +43,7 @@ CPAN_BASE_URL = CPAN_API_URL + '/release/{module}'
 # See https://sourceforge.net/api-docs/
 SF_API_URL = 'https://sourceforge.net/rest'
 SF_BASE_URL = SF_API_URL + '/p/{project}'
+SF_ACTIVITY_URL = SF_BASE_URL + '/activity'
 
 NPM_API_URL = 'https://registry.npmjs.org'
 NPM_BASE_URL = NPM_API_URL + '/{package}'
@@ -90,6 +97,33 @@ EL_EXPRESSION_RE = re.compile(r'\${([^}]*)}')
 # RE to find a link in plain text
 TEXT_LINK_RE = re.compile(r'(http|ftp|https):\/\/([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:\/~+#-]*[\w@?^=%&\/~+#-])')
 
+# Thread lock for switching locales
+LOCALE_LOCK = threading.Lock()
+
+
+@dataclass
+class ProjInfo:
+    """Information about a hosted project."""
+
+    class ProjStatus(enum.IntEnum):
+        """Project status conditions."""
+        UNKNOWN = enum.auto()   # unable to determine project status
+        INVALID = enum.auto()   # project existed but is no longer available (disabled)
+        VALID = enum.auto()     # project exists and is enabled
+
+    status: ProjStatus
+    last_modified: Optional[datetime.datetime]
+    urls: list[str]
+
+
+def parse_iso8601(stamp: str) -> datetime.datetime:
+    """Parse an ISO 8601 timestamp."""
+    if '.' in stamp:
+        return datetime.datetime.strptime(stamp, '%Y-%m-%dT%H:%M:%S.%f%z')
+    if 'Z' in stamp:
+        return datetime.datetime.strptime(stamp, '%Y-%m-%dT%H:%M:%S%z')
+    return datetime.datetime.strptime(stamp + 'Z', '%Y-%m-%dT%H:%M:%S%z')
+
 
 def unsafe_path(path: str) -> bool:
     """Returns True if the path contains some chars that are problematic in URLs."""
@@ -126,7 +160,7 @@ def substitute_el_expression(text: str, props: dict[str, str]) -> str:
 
 
 def parse_pom(xml: str) -> list[str]:
-    """Parse a Maven POM file to extract useful URLS.
+    """Parse a Maven POM file to extract useful info.
 
     Only basic EL template replacement is performed, on the given properties and only the elements
     found to be typically used in POM file.
@@ -144,14 +178,14 @@ def parse_pom(xml: str) -> list[str]:
                 properties[key] = prop.text
 
     # Get the URLs we are here for
-    urls = []  # type: list[str]
+    rawurls = []  # type: list[str]
     if (tag := root.find('x:url', ns)) is not None:
-        urls.append(tag.text)
+        rawurls.append(tag.text)
         properties['project.url'] = tag.text
 
     if (el_scm := root.find('x:scm', ns)) is not None:
         if (tag := el_scm.find('x:url', ns)) is not None:
-            urls.append(tag.text)
+            rawurls.append(tag.text)
         if (tag := el_scm.find('x:tag', ns)) is not None:
             properties['project.scm.tag'] = tag.text
 
@@ -162,7 +196,7 @@ def parse_pom(xml: str) -> list[str]:
         properties['project.version'] = tag.text
 
     # Template substitution on all URLs
-    return [substitute_el_expression(url, properties) for url in urls]
+    return [substitute_el_expression(url, properties) for url in rawurls]
 
 
 def parse_lp_rdf(xml: str) -> list[str]:
@@ -188,11 +222,17 @@ def extract_link(text: str) -> str:
 
 
 class SavannahParser(html.parser.HTMLParser):
-    """Parser for GNU Savannah HTML pages."""
+    """Parser for GNU Savannah HTML pages.
+
+    Date is available in this style of tree:
+      <h2>Latest News</h2><span class="smaller">xxx<a>proj</a>HERE IS THE DATE</span>
+    """
     def __init__(self):
         super().__init__()
-        self.urls = []
+        self.date = ''        # Extracted date
+        self.urls = []        # List of extracted URLs
         self.current_url = ''
+        self.getdate = 0      # How close we are to getting the date
 
     def handle_starttag(self, tag: str, attrs):
         self.current_url = ''
@@ -201,32 +241,84 @@ class SavannahParser(html.parser.HTMLParser):
             if 'tabs' in set(attr_dict.get('class', '').split()):
                 self.current_url = attr_dict.get('href', '')
 
+        elif self.getdate == 1 and tag == 'span':
+            attr_dict = dict(attrs)
+            if 'smaller' in set(attr_dict.get('class', '').split()):
+                self.getdate = 2
+
     def handle_startendtag(self, tag: str, attrs):
         self.current_url = ''
+        if tag == 'span':
+            self.getdate = 0
 
     def handle_endtag(self, tag: str):
         self.current_url = ''
+        if tag == 'span':
+            self.getdate = 0
+
+        elif self.getdate == 2 and tag == 'a':
+            self.getdate = 3
 
     def handle_data(self, data: str):
         if self.current_url and data.strip() == 'Homepage':
             self.urls.append(self.current_url)
 
+        elif data.strip().startswith('Latest News'):
+            self.getdate = 1
 
-def parse_savannah(html: str) -> list[str]:
-    """Parse a Savannah page to extract useful URLS.
+        elif self.getdate == 3:
+            self.date = data.strip().lstrip(', ')
+            self.getdate = 0
+
+
+@contextlib.contextmanager
+def setctimelocale():
+    """Context manager to use the "C" LC_TIME locale.
+
+    This allows parsing standard time formats without locale-specifics interfering.
+    The thread lock avoids the temporary locale change from affecting other threads
+    AS LONG AS ALL LOCALE-DEPENDENT CALLS ARE LOCKED WITH THIS SAME MUTEX.
+    This context manager can only prevent other calls to this same context manager
+    from interfering with each other. This is brittle, and it's probably better that
+    the program simply switch to the C locale at startup and leave it there, simply
+    eschewing the use of other locales altogether.
+    """
+    with LOCALE_LOCK:
+        saved = locale.setlocale(locale.LC_TIME)
+        try:
+            yield locale.setlocale(locale.LC_TIME, 'C')
+        finally:
+            locale.setlocale(locale.LC_TIME, saved)
+
+
+def parse_savannah(html: str) -> Optional[ProjInfo]:
+    """Parse a Savannah page to extract useful info.
 
     Savannah doesn't appear to offer an API for extracting this info, so screen-scrape it.
     """
     parser = SavannahParser()
     parser.feed(html)
-    return parser.urls
+
+    # TODO: find a better status
+    status = ProjInfo.ProjStatus.UNKNOWN
+    # Date looks like: Thu 11 Feb 2010 10:29:00 PM UTC
+    try:
+        with setctimelocale():
+            last_modified = datetime.datetime.strptime(parser.date + '+0000',
+                                                       '%a %d %b %Y %I:%M:%S %p UTC%z')
+    except ValueError:
+        logging.warning('Unsupported date format %s', parser.date)
+        last_modified = None
+    urls = [url for url in parser.urls if url]
+    return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
 
 class OcamlParser(html.parser.HTMLParser):
     """Parser for opam.ocaml.org HTML pages."""
     def __init__(self):
         super().__init__()
-        self.urls = []
+        self.urls = []        # List of extracted URLs
+        self.date = ''        # Extracted date
         self.in_th = False
         self.in_interesting_url = False
 
@@ -235,6 +327,10 @@ class OcamlParser(html.parser.HTMLParser):
         if self.in_interesting_url and tag == 'a':
             attr_dict = dict(attrs)
             self.urls.append(attr_dict.get('href', ''))
+
+        elif tag == 'time':
+            attr_dict = dict(attrs)
+            self.date = attr_dict.get('datetime', '')
 
     def handle_data(self, data: str):
         self.in_interesting_url = (self.in_th and data.strip()
@@ -247,8 +343,8 @@ class OcamlParser(html.parser.HTMLParser):
             self.in_interesting_url = False
 
 
-def parse_ocaml(html: str) -> list[str]:
-    """Parse a opam.ocaml.org page to extract useful URLS.
+def parse_ocaml(html: str) -> Optional[ProjInfo]:
+    """Parse a opam.ocaml.org page to extract useful info.
 
     opam2web doesn't appear to offer an API for extracting this info, so screen-scrape it.
     An alternative would be to download .opam files directly from
@@ -257,7 +353,16 @@ def parse_ocaml(html: str) -> list[str]:
     """
     parser = OcamlParser()
     parser.feed(html)
-    return parser.urls
+
+    # TODO: find a better status
+    status = ProjInfo.ProjStatus.UNKNOWN
+    try:
+        last_modified = datetime.datetime.strptime(parser.date + '+0000', '%Y-%m-%d%z')
+    except ValueError:
+        logging.warning('Unsupported date format %s', parser.date)
+        last_modified = None
+    urls = [url for url in parser.urls if url]
+    return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
 
 class HostingAPI:
@@ -267,7 +372,7 @@ class HostingAPI:
         self.req = netreq.Session()
         self.gh_token = gh_token
         # Initialize the cache here to avoid memory leaks (see flake8 issue B019)
-        self.get_project_links = functools.lru_cache(maxsize=100)(self._get_project_links)
+        self.get_project_info = functools.lru_cache(maxsize=100)(self._get_project_info)
 
     def _get_generic_project_name(self, url: str) -> tuple[str, str]:
         """Return the source code owner and project to use from a source hosting system URL.
@@ -283,8 +388,8 @@ class HostingAPI:
             return ('', '')
         return tuple(path.split('/')[1:3])
 
-    def get_gh_url(self, url: str) -> str:
-        """Retrieves the home page URL set for a Github project.
+    def get_gh_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves interesting metadata about a Github project.
 
         See https://docs.github.com/en/rest/repos/repos?apiVersion=2022-11-28#get-a-repository
         Args:
@@ -292,7 +397,7 @@ class HostingAPI:
         """
         owner, repo = self._get_generic_project_name(url)
         if not owner or not repo or unsafe_path(owner) or unsafe_path(repo):
-            return ''
+            return None
 
         headers = {'Accept': GH_DATA_TYPE,
                    'X-GitHub-Api-Version': GH_API_VERSION,
@@ -307,8 +412,22 @@ class HostingAPI:
         except netreq.HTTPError as e:
             logging.info('Error retrieving data for %s (%s: %s)',
                          url, e.response.status_code, e.response.reason)
-            return ''
-        return json.loads(resp.text)['homepage']
+            return None
+
+        meta = json.loads(resp.text)
+        status = ProjInfo.ProjStatus.INVALID if meta['archived'] else ProjInfo.ProjStatus.VALID
+        last_modified = parse_iso8601(meta['pushed_at'])
+        urls = [meta['homepage']] if meta['homepage'] else []
+        # html_url could be different from that requested if the repository was redirected
+        if meta['html_url'] and (owner, repo) != self._get_generic_project_name(meta['html_url']):
+            urls.append(meta['html_url'])
+        if meta['fork']:
+            # TODO: maybe this information should be put into ProjInfo instead
+            logging.info('Note: project is not original but a fork (%s)', url)
+        return ProjInfo(
+            status=status,
+            last_modified=last_modified,
+            urls=urls)
 
     def get_gh_releases(self, url: str) -> list[str]:
         """Retrieves a list of release tags for a Github project.
@@ -366,7 +485,8 @@ class HostingAPI:
             return []
         return [r['name'] for r in json.loads(resp.text)]
 
-    def _get_gitlab_url(self, base_url_tmpl: str, pages_url_tmpl: str, url: str) -> list[str]:
+    def _get_gitlab_info(self, base_url_tmpl: str, pages_url_tmpl: str, url: str
+                         ) -> Optional[ProjInfo]:
         """Retrieves the home page URL set for a Gitlab project.
 
         See https://docs.gitlab.com/api/rest/
@@ -378,9 +498,11 @@ class HostingAPI:
         """
         namespace, project = self._get_generic_project_name(url)
         if not namespace or not project or unsafe_path(namespace) or unsafe_path(project):
-            return []
+            return None
 
         urls = []
+        last_modified = None
+        status = ProjInfo.ProjStatus.UNKNOWN
         # Some Gitlab instances don't allow access to the API, so just provide the Pages links
         if base_url_tmpl:
             headers = {'Accept': JSON_DATA_TYPE,
@@ -394,28 +516,38 @@ class HostingAPI:
                 logging.info('Error retrieving data for %s (%s: %s)',
                              url, e.response.status_code, e.response.reason)
             else:
-                if desc := json.loads(resp.text)['description']:
+                meta = json.loads(resp.text)
+                if desc := meta['description']:
+                    # Look for a link in the project description. This might
+                    # not actually be a link to a home page (it might be to a
+                    # related project or a specification or something) but some
+                    # use it for this purpose and it's probably more likely to
+                    # be right than wrong.
                     urls.append(extract_link(desc))
+                last_modified = parse_iso8601(meta['last_activity_at'])
+                # This field is documented to be there but in practise doesn't seem to be. Maybe
+                # it's only available when authenticated?
+                if 'archived' in meta:
+                    status = (ProjInfo.ProjStatus.INVALID if meta['archived']
+                              else ProjInfo.ProjStatus.VALID)
 
-        # Look for a link in the project description. This might not actually be a link to a
-        # home page (it might be to a related project or a specification or something) but
-        # some use it for this purpose and it's probably more likely to be right than wrong.
-        #
         # Some projects have a "GitLab Pages" link in their project overview page but it isn't
         # included in the project's JSON dump. Until we can figure out how to tell when it's
         # active, just add it unconditionally.
-        return urls + [pages_url_tmpl.format(namespace=namespace, project=project)]
+        urls.append(pages_url_tmpl.format(namespace=namespace, project=project))
+        urls = [url for url in urls if url]
+        return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
-    def get_gitlab_com_url(self, url: str) -> list[str]:
-        """Retrieves the home page URL set for a Gitlab.com project.
+    def get_gitlab_com_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves info for a Gitlab.com project.
 
         Args:
             url: the canonical URL for the project
         """
-        return self._get_gitlab_url(GITLAB_BASE_URL, GITLAB_COM_PAGES_URL, url)
+        return self._get_gitlab_info(GITLAB_BASE_URL, GITLAB_COM_PAGES_URL, url)
 
-    def get_private_gitlab_url(self, url: str) -> list[str]:
-        """Retrieves the home page URL set for a standardized private Gitlab project.
+    def get_private_gitlab_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves info for a standardized private Gitlab project.
 
         Args:
             domain: the private Gitlab instance domain
@@ -424,7 +556,7 @@ class HostingAPI:
         _, domain, _, _, _ = parse.urlsplit(url)
         base_api_tmpl = PRIVATE_GITLAB_BASE_URL.format(domain=domain)
         base_pages_tmpl = PRIVATE_GITLAB_PAGES_URL.format(domain=domain)
-        return self._get_gitlab_url(base_api_tmpl, base_pages_tmpl, url)
+        return self._get_gitlab_info(base_api_tmpl, base_pages_tmpl, url)
 
     def _get_gitlab_tags(self, tags_url: str, url: str) -> list[str]:
         """Retrieves a list of tags for a Gitlab project.
@@ -461,8 +593,8 @@ class HostingAPI:
         """
         return self._get_gitlab_tags(GITLAB_TAGS_URL, url)
 
-    def get_shortpages_gitlab_url(self, url: str) -> list[str]:
-        """Retrieves the home page URL set for a standardized private Gitlab project.
+    def get_shortpages_gitlab_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves info for a standardized private Gitlab project.
 
         The pages URL doesn't have "gitlab." in the domain.
 
@@ -474,10 +606,10 @@ class HostingAPI:
         bare_domain = domain.replace('gitlab.', '')
         base_api_tmpl = PRIVATE_GITLAB_BASE_URL.format(domain=domain)
         base_pages_tmpl = PRIVATE_GITLAB_PAGES_URL.format(domain=bare_domain)
-        return self._get_gitlab_url(base_api_tmpl, base_pages_tmpl, url)
+        return self._get_gitlab_info(base_api_tmpl, base_pages_tmpl, url)
 
-    def get_pypi_url(self, url: str) -> list[str]:
-        """Retrieves the home page and download URLs set for a PyPi project.
+    def get_pypi_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves info for a PyPi project.
 
         See https://docs.pypi.org/api/json/
 
@@ -486,7 +618,7 @@ class HostingAPI:
         """
         _, project = self._get_generic_project_name(url)
         if not project or unsafe_path(project):
-            return []
+            return None
 
         headers = {'Accept': JSON_DATA_TYPE,
                    'User-Agent': netreq.USER_AGENT
@@ -498,8 +630,9 @@ class HostingAPI:
         except netreq.HTTPError as e:
             logging.info('Error retrieving data for %s (%s: %s)',
                          url, e.response.status_code, e.response.reason)
-            return []
-        info = json.loads(resp.text)['info']
+            return None
+        meta = json.loads(resp.text)
+        info = meta['info']
 
         urls = [info['home_page'], info['download_url']]
         proj_urls = info['project_urls']
@@ -512,10 +645,19 @@ class HostingAPI:
                     'Code']
             urls.extend(proj_urls.get(key, '') for key in keys)
 
-        return [url for url in urls if url and url != 'UKNOWN']
+        last_modified = None
+        for relinfos in meta['releases'].values():
+            for relinfo in relinfos:
+                stamp = parse_iso8601(relinfo['upload_time_iso_8601'])
+                last_modified = max(stamp, last_modified) if last_modified else stamp
 
-    def get_crates_url(self, url: str) -> list[str]:
-        """Retrieves the home page, repository and download URLs set for a crates.io project.
+        # TODO: find a better status
+        status = ProjInfo.ProjStatus.UNKNOWN
+        urls = [url for url in urls if url and url != 'UKNOWN']
+        return ProjInfo(status=status, last_modified=last_modified, urls=urls)
+
+    def get_crates_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves info for a crates.io project.
 
         See https://doc.rust-lang.org/cargo/reference/registry-index.html#index-format
 
@@ -524,7 +666,7 @@ class HostingAPI:
         """
         _, crate = self._get_generic_project_name(url)
         if not crate or unsafe_path(crate):
-            return []
+            return None
 
         headers = {'Accept': JSON_DATA_TYPE,
                    'User-Agent': netreq.USER_AGENT
@@ -536,12 +678,18 @@ class HostingAPI:
         except netreq.HTTPError as e:
             logging.info('Error retrieving data for %s (%s: %s)',
                          url, e.response.status_code, e.response.reason)
-            return []
+            return None
         info = json.loads(resp.text)['crate']
-        return [info['homepage'] or '', info['repository'] or '', info['documentation'] or '']
 
-    def get_cpan_url(self, url: str) -> list[str]:
-        """Retrieves the home page and download URLs set for a CPAN project.
+        # TODO: find a better status
+        status = ProjInfo.ProjStatus.UNKNOWN
+        last_modified = parse_iso8601(info['updated_at'])
+        urls = [info['homepage'] or '', info['repository'] or '', info['documentation'] or '']
+        urls = [url for url in urls if url]
+        return ProjInfo(status=status, last_modified=last_modified, urls=urls)
+
+    def get_cpan_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves info for a CPAN project.
 
         See https://github.com/metacpan/metacpan-api/blob/master/docs/API-docs.md
 
@@ -550,7 +698,7 @@ class HostingAPI:
         """
         _, module = self._get_generic_project_name(url)
         if not module or unsafe_path(module):
-            return []
+            return None
 
         headers = {'Accept': JSON_DATA_TYPE,
                    'User-Agent': netreq.USER_AGENT
@@ -562,12 +710,18 @@ class HostingAPI:
         except netreq.HTTPError as e:
             logging.info('Error retrieving data for %s (%s: %s)',
                          url, e.response.status_code, e.response.reason)
-            return []
-        info = json.loads(resp.text)['resources']
-        return [info.get('homepage', ''), info.get('repository', {}).get('web', '')]
+            return None
+        meta = json.loads(resp.text)
+        info = meta['resources']
+        # TODO: find a better status
+        status = ProjInfo.ProjStatus.UNKNOWN
+        last_modified = parse_iso8601(meta['date'])
+        urls = [info.get('homepage', ''), info.get('repository', {}).get('web', '')]
+        urls = [url for url in urls if url]
+        return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
-    def get_sf_url(self, url: str) -> list[str]:
-        """Retrieves the home page and download URLs set for a SourceForge project.
+    def get_sf_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves info for a SourceForge project.
 
         See https://sourceforge.net/api-docs/#operation/GET_neighborhood-project
 
@@ -576,7 +730,7 @@ class HostingAPI:
         """
         _, project = self._get_generic_project_name(url)
         if not project or unsafe_path(project):
-            return []
+            return None
 
         headers = {'Accept': JSON_DATA_TYPE,
                    'User-Agent': netreq.USER_AGENT
@@ -588,14 +742,45 @@ class HostingAPI:
         except netreq.HTTPError as e:
             logging.info('Error retrieving data for %s (%s: %s)',
                          url, e.response.status_code, e.response.reason)
-            return []
+            return None
         info = json.loads(resp.text)
+
+        last_modified = None
+        for tool in info['tools']:
+            if tool['name'] == 'activity':
+                resp = self.req.get(SF_ACTIVITY_URL.format(project=project), headers=headers,
+                                    timeout=netreq.TIMEOUT)
+                try:
+                    resp.raise_for_status()
+                except netreq.HTTPError as e:
+                    logging.info('Error retrieving data for %s (%s: %s)',
+                                 url, e.response.status_code, e.response.reason)
+                else:
+                    activities = json.loads(resp.text)
+                    for activity in activities['timeline']:
+                        # A release or a commit counts as project activity. Most other types can be
+                        # created by users trying to wake a dead project. "blog" might be another
+                        # we could look at, but code is king.
+                        if 'release' in activity['tags'] or 'commit' in activity['tags']:
+                            # Use the first matching activity found
+                            last_modified = datetime.datetime.fromtimestamp(
+                                activity['published'] / 1000, tz=datetime.timezone.utc)
+                            break
+                    # It looks like activity logs only go back so far, so a lack of activity
+                    # could mean no activity or very old activity. Either way, it's a bad sign
+                    # and so perhaps should be surfaced.
+
+        # TODO: find a better status
+        status = ProjInfo.ProjStatus.UNKNOWN
+
         # Could pull out sf.net-hosted CVS, SVN or GIT links, but that probably wouldn't help much
         # and we can't tell if they're active or not.
-        return [info['external_homepage'], info['moved_to_url']]
+        urls = [info['external_homepage'], info['moved_to_url']]
+        urls = [url for url in urls if url]
+        return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
-    def _get_npm_url(self, base_url_tmpl: str, url: str) -> list[str]:
-        """Retrieves the home page and download URLs set for a npm/npmjs project.
+    def _get_npm_info(self, base_url_tmpl: str, url: str) -> Optional[ProjInfo]:
+        """Retrieves info for a npm/npmjs project.
 
         The proper base API template must be supplied.
         See https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md
@@ -606,7 +791,7 @@ class HostingAPI:
         """
         _, package = self._get_generic_project_name(url)
         if not package or unsafe_path(package):
-            return []
+            return None
 
         headers = {'Accept': JSON_DATA_TYPE,
                    'User-Agent': netreq.USER_AGENT
@@ -618,32 +803,46 @@ class HostingAPI:
         except netreq.HTTPError as e:
             logging.info('Error retrieving data for %s (%s: %s)',
                          url, e.response.status_code, e.response.reason)
-            return []
+            return None
         info = json.loads(resp.text)
-        return [info.get('homepage', ''), info.get('repository', {}).get('url', '')]
 
-    def get_npm_url(self, url: str) -> list[str]:
-        """Retrieves the home page and download URLs set for a npm project.
+        # TODO: find a better status
+        status = ProjInfo.ProjStatus.UNKNOWN
+        last_modified = None
+        for name, timestr in info['time'].items():
+            if name == 'modified':
+                # There is a 'modified' field, but that also seems to be updated if a scanner
+                # detects a vulnerability in a project, even if it hasn't had a release in years,
+                # so it's not really what we need.
+                continue
+            stamp = parse_iso8601(timestr)
+            last_modified = max(stamp, last_modified) if last_modified else stamp
+        urls = [info.get('homepage', ''), info.get('repository', {}).get('url', '')]
+        urls = [url for url in urls if url]
+        return ProjInfo(status=status, last_modified=last_modified, urls=urls)
+
+    def get_npm_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves info for a npm project.
 
         See https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md
 
         Args:
             url: the canonical URL for the project
         """
-        return self._get_npm_url(NPM_BASE_URL, url)
+        return self._get_npm_info(NPM_BASE_URL, url)
 
-    def get_npmjs_url(self, url: str) -> list[str]:
-        """Retrieves the home page and download URLs set for a npmjs project.
+    def get_npmjs_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves info for a npmjs project.
 
         See https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md
 
         Args:
             url: the canonical URL for the project
         """
-        return self._get_npm_url(NPMJS_BASE_URL, url)
+        return self._get_npm_info(NPMJS_BASE_URL, url)
 
-    def get_ruby_url(self, url: str) -> list[str]:
-        """Retrieves the home page and download URLs set for a Rubygems project.
+    def get_ruby_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves info for a Rubygems project.
 
         See https://guides.rubygems.org/rubygems-org-api/#gem-methods
 
@@ -652,7 +851,7 @@ class HostingAPI:
         """
         _, gem = self._get_generic_project_name(url)
         if not gem or unsafe_path(gem):
-            return []
+            return None
 
         headers = {'Accept': JSON_DATA_TYPE,
                    'User-Agent': netreq.USER_AGENT
@@ -664,14 +863,19 @@ class HostingAPI:
         except netreq.HTTPError as e:
             logging.info('Error retrieving data for %s (%s: %s)',
                          url, e.response.status_code, e.response.reason)
-            return []
+            return None
         info = json.loads(resp.text)
         metadata = info['metadata']
-        return [info['source_code_uri'], info['homepage_uri'], metadata.get('homepage_uri', ''),
+        # TODO: find a better status
+        status = ProjInfo.ProjStatus.UNKNOWN
+        last_modified = parse_iso8601(info['version_created_at'])
+        urls = [info['source_code_uri'], info['homepage_uri'], metadata.get('homepage_uri', ''),
                 metadata.get('source_code_uri'), metadata.get('documentation_uri')]
+        urls = [url for url in urls if url]
+        return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
-    def get_maven_url(self, url: str) -> list[str]:
-        """Retrieves the home page and download URLs set for a Maven project.
+    def get_maven_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves info for a Maven project.
 
         See https://central.sonatype.com/api-doc
 
@@ -681,10 +885,10 @@ class HostingAPI:
         _, _, path, _, _ = parse.urlsplit(url)
         parts = path.split('/')
         if len(parts) < 4:
-            return []
+            return None
         group, artifact = parts[2], parts[3]
         if unsafe_path(group) or unsafe_path(artifact):
-            return []
+            return None
         group_path = group.replace('.', '/')
 
         # Step 1: get the version metadata
@@ -700,17 +904,19 @@ class HostingAPI:
             except netreq.HTTPError as e:
                 logging.info('Error retrieving data for %s (%s: %s)',
                              url, e.response.status_code, e.response.reason)
-                return []
+                return None
             info = json.loads(resp.text)['response']
             if not info or info['numFound'] != 1:
-                return []
+                return None
             pinfo = info['docs'][0]
             if pinfo['g'] != group or pinfo['a'] != artifact:
                 # The server has given us a result which we didn't ask for
                 logging.info('Mismatch in requested Maven group+artifact %s %s',
                              pinfo['g'], pinfo['a'])
-                return []
+                return None
             version = pinfo['latestVersion']
+            last_modified = datetime.datetime.fromtimestamp(int(pinfo['timestamp']) / 1000,
+                                                            tz=datetime.timezone.utc)
 
         else:
             headers = {'Accept': XML_DATA_TYPE,
@@ -723,9 +929,12 @@ class HostingAPI:
             except netreq.HTTPError as e:
                 logging.info('Error retrieving data for %s (%s: %s)',
                              url, e.response.status_code, e.response.reason)
-                return []
+                return None
             # TODO: parse XML from /metadata/versioning/latest to get version
             # But this metadata source is sometimes out of date
+            # version = ???
+            # TODO: get timestamp from somewhere
+            # last_modified = ???
 
         # Step 2: get the POM metadata
         resp = self.req.get(MAVEN_POM_URL.format(group_hier=group_path, artifact=artifact,
@@ -736,16 +945,21 @@ class HostingAPI:
         except netreq.HTTPError as e:
             logging.info('Error retrieving data for %s (%s: %s)',
                          url, e.response.status_code, e.response.reason)
-            return []
+            return None
 
         # Step 3: return the metadata from POM
         try:
-            return parse_pom(resp.text)
+            urls = parse_pom(resp.text)
         except ET.ParseError:
             logging.info('Could not parse POM file for %s:%s', group, artifact)
-        return []
+            return None
 
-    def get_launchpad_url(self, url: str) -> list[str]:
+        # TODO: find a better status
+        status = ProjInfo.ProjStatus.UNKNOWN
+        urls = [url for url in urls if url]
+        return ProjInfo(status=status, last_modified=last_modified, urls=urls)
+
+    def get_launchpad_info(self, url: str) -> Optional[ProjInfo]:
         """Retrieves the home page set for a Launchpad project.
 
         Args:
@@ -754,10 +968,10 @@ class HostingAPI:
         _, _, path, _, _ = parse.urlsplit(url)
         parts = path.split('/')
         if len(parts) < 2:
-            return []
+            return None
         project = parts[1]
         if not project or unsafe_path(project):
-            return []
+            return None
 
         headers = {'Accept': XML_DATA_TYPE,
                    'User-Agent': netreq.USER_AGENT
@@ -769,17 +983,28 @@ class HostingAPI:
         except netreq.HTTPError as e:
             logging.info('Error retrieving data for %s (%s: %s)',
                          url, e.response.status_code, e.response.reason)
-            return []
+            return None
 
         # Return the metadata from the RDF file
         try:
-            return parse_lp_rdf(resp.text)
+            urls = parse_lp_rdf(resp.text)
         except ET.ParseError:
             logging.info('Could not parse Launchpad RDF file for %s', project)
-        return []
+            return None
 
-    def _get_savannah_url(self, base_url_tmpl: str, url: str) -> list[str]:
-        """Retrieves the home page and download links for a GNU Savannah project.
+        # TODO: find a better status
+        status = ProjInfo.ProjStatus.UNKNOWN
+        # TODO: get the modified date
+        # Need to load all lp:ProductSeries and all their lp:ProductRelease to find
+        # the latest lp:creationDate (which could be hundreds). Some projects just have
+        # lp:ProductSeries then lp:release.
+        # Actually, just use the JSON API instead: https://api.launchpad.net/devel.html#projects
+        last_modified = None
+        urls = [url for url in urls if url]
+        return ProjInfo(status=status, last_modified=last_modified, urls=urls)
+
+    def _get_savannah_info(self, base_url_tmpl: str, url: str) -> Optional[ProjInfo]:
+        """Retrieves info for a GNU Savannah project.
 
         Args:
             base_url_tmpl: base API URL template
@@ -787,7 +1012,7 @@ class HostingAPI:
         """
         _, project = self._get_generic_project_name(url)
         if not project or unsafe_path(project):
-            return []
+            return None
 
         headers = {'Accept': HTML_DATA_TYPE,
                    'User-Agent': netreq.USER_AGENT
@@ -799,34 +1024,34 @@ class HostingAPI:
         except netreq.HTTPError as e:
             logging.info('Error retrieving data for %s (%s: %s)',
                          url, e.response.status_code, e.response.reason)
-            return []
+            return None
         return parse_savannah(resp.text)
 
-    def get_gnusavannah_url(self, url: str) -> list[str]:
-        """Retrieves the home page and download links for a GNU Savannah project.
+    def get_gnusavannah_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves info for a GNU Savannah project.
 
         Args:
             url: the canonical URL for the project
         """
-        return self._get_savannah_url(GNUSV_BASE_URL, url)
+        return self._get_savannah_info(GNUSV_BASE_URL, url)
 
-    def get_nongnusavannah_url(self, url: str) -> list[str]:
-        """Retrieves the home page and download links for a Non-GNU Savannah project.
+    def get_nongnusavannah_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves info for a Non-GNU Savannah project.
 
         Args:
             url: the canonical URL for the project
         """
-        return self._get_savannah_url(NONGNUSV_BASE_URL, url)
+        return self._get_savannah_info(NONGNUSV_BASE_URL, url)
 
-    def get_ocaml_url(self, url: str) -> list[str]:
-        """Retrieves the home page and download links for a opam entry.
+    def get_ocaml_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves info for a opam entry.
 
         Args:
             url: the canonical URL for the project
         """
         _, package = self._get_generic_project_name(url)
         if not package or unsafe_path(package):
-            return []
+            return None
 
         headers = {'Accept': HTML_DATA_TYPE,
                    'User-Agent': netreq.USER_AGENT
@@ -838,11 +1063,11 @@ class HostingAPI:
         except netreq.HTTPError as e:
             logging.info('Error retrieving data for %s (%s: %s)',
                          url, e.response.status_code, e.response.reason)
-            return []
+            return None
         return parse_ocaml(resp.text)
 
-    def get_readthedocs_url(self, url: str) -> list[str]:
-        """Parse a ReadTheDocs page to extract useful URLS.
+    def get_readthedocs_info(self, url: str) -> Optional[ProjInfo]:
+        """Parse a ReadTheDocs page to extract useful info.
 
         See https://docs.readthedocs.com/platform/stable/api/v3.html
         TODO: https://readthedocs.org/docs/XXX/ is another form of URL
@@ -853,7 +1078,7 @@ class HostingAPI:
         _, netloc, _, _, _ = parse.urlsplit(url)
         hosts = netloc.split('.')
         if not hosts or len(hosts) != 3:
-            return []
+            return None
         project = hosts[0]
 
         headers = {'Accept': JSON_DATA_TYPE,
@@ -866,36 +1091,32 @@ class HostingAPI:
         except netreq.HTTPError as e:
             logging.info('Error retrieving data for %s (%s: %s)',
                          url, e.response.status_code, e.response.reason)
-            return []
+            return None
         info = json.loads(resp.text)
         homepage = info['homepage']
         repo = info.get('repository', {}).get('url')
         if repo.endswith('.git'):
             repo = repo[:-4]
-        return [homepage, repo]
+        urls = [homepage, repo]
 
-    def _get_project_links(self, url: str) -> frozenset[str]:
-        """Retrieves the home page and download URLs set at a supported code hosting project.
+        # TODO: find a better status
+        status = ProjInfo.ProjStatus.UNKNOWN
+        last_modified = parse_iso8601(info['modified'])
+        urls = [url for url in urls if url]
+        return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
-        This is intended to handle site that host multiple projects and not just single private
-        repositories. Keeping track of individual sites it not worth the pain of keeping it
-        up-to-date.
-
-        They are returned as a frozenset so it can be cached. However, to avoid memory leaks,
-        the cached function is initialized in __init__().
-
-        Args:
-            url: the canonical URL for the project
-        """
+    def _get_project_info(self, url: str) -> Optional[ProjInfo]:
+        """Return basic information about a hosted project."""
         if not url:
-            return frozenset()
+            return None
 
         _, netloc, _, _, _ = parse.urlsplit(url)
+
         if netloc == 'github.com':
-            return frozenset(filter(None, {self.get_gh_url(url)}))
+            return self.get_gh_info(url)
 
         if netloc == 'gitlab.com':
-            return frozenset(filter(None, self.get_gitlab_com_url(url)))
+            return self.get_gitlab_com_info(url)
 
         # invent.kde.org is a gitlab instance, but doesn't provide any useful metadata in the
         # Gitlab project, and doesn't seem to have consistent pages URLs.
@@ -905,49 +1126,49 @@ class HostingAPI:
         if netloc in frozenset({'gitlab.gnome.org', 'gitlab.matrix.org', 'gitlab.xiph.org',
                                 'gitlab.inria.fr', 'gitlab.dkrz.de', 'gitlab.cern.ch',
                                 'gitlab.haskell.org'}):
-            return frozenset(filter(None, self.get_private_gitlab_url(url)))
+            return self.get_private_gitlab_info(url)
 
         if netloc in frozenset({'gitlab.freedesktop.org', 'gitlab.xfce.org'}):
-            return frozenset(filter(None, self.get_shortpages_gitlab_url(url)))
+            return self.get_shortpages_gitlab_info(url)
 
         if netloc == 'pypi.org':
-            return frozenset(filter(None, self.get_pypi_url(url)))
+            return self.get_pypi_info(url)
 
         if netloc == 'crates.io':
-            return frozenset(filter(None, self.get_crates_url(url)))
+            return self.get_crates_info(url)
 
         if netloc == 'metacpan.org':
-            return frozenset(filter(None, self.get_cpan_url(url)))
+            return self.get_cpan_info(url)
 
         if netloc == 'sourceforge.net':
-            return frozenset(filter(None, self.get_sf_url(url)))
+            return self.get_sf_info(url)
 
         if netloc == 'npmjs.org':
-            return frozenset(filter(None, self.get_npm_url(url)))
+            return self.get_npm_info(url)
 
         if netloc == 'npmjs.com':
-            return frozenset(filter(None, self.get_npmjs_url(url)))
+            return self.get_npmjs_info(url)
 
         if netloc == 'rubygems.org':
-            return frozenset(filter(None, self.get_ruby_url(url)))
+            return self.get_ruby_info(url)
 
         if netloc == 'central.sonatype.com':
-            return frozenset(filter(None, self.get_maven_url(url)))
+            return self.get_maven_info(url)
 
         if netloc == 'launchpad.net':
-            return frozenset(filter(None, self.get_launchpad_url(url)))
+            return self.get_launchpad_info(url)
 
         if netloc == 'savannah.gnu.org':
-            return frozenset(filter(None, self.get_gnusavannah_url(url)))
+            return self.get_gnusavannah_info(url)
 
         if netloc == 'savannah.nongnu.org':
-            return frozenset(filter(None, self.get_nongnusavannah_url(url)))
+            return self.get_nongnusavannah_info(url)
 
         if netloc == 'opam.ocaml.org':
-            return frozenset(filter(None, self.get_ocaml_url(url)))
+            return self.get_ocaml_info(url)
 
         if netloc.endswith('.readthedocs.org') or netloc.endswith('.readthedocs.io'):
-            return frozenset(filter(None, self.get_readthedocs_url(url)))
+            return self.get_readthedocs_info(url)
 
         # TODO: add these sources:
         # https://hackage.haskell.org/ (home page, source code)
@@ -966,12 +1187,13 @@ class HostingAPI:
         # that link should be enough to disambiguate)
 
         logging.debug('External requests not supported for %s', netloc)
-        return frozenset()
+        return None
 
 
 if __name__ == '__main__':
     # Debugging tool
     logging.basicConfig(level=logging.DEBUG)
     h = HostingAPI(None)
-    for url in h.get_project_links(sys.argv[1]):
-        print(url)
+    for url in sys.argv[1:]:
+        # TODO: this expects canonicalized URLs
+        print(h.get_project_info(url), url)
