@@ -18,6 +18,9 @@ Run one of these commands to run the unit test suite:
     pytest
     python3 -m unittest
 
+Note that while the CLI interface should be fairly stable, the author currently
+makes no guarantees on backward compatibility of software APIs.
+
 ## Use
 
 release-monitoring.org is a site that looks for updated versions of software
