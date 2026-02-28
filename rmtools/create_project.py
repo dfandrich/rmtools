@@ -61,6 +61,24 @@ def strip_project_prefix(project_name: str, strip_prefix: list[str]) -> str:
     return project_name
 
 
+def strip_prerelease_suffix_list(releases: list[str], suffixes: list[str]) -> str:
+    """Find and remove prerelease suffixes from the list of release numbers.
+
+    If at least one suffix is found, the suffix list string is returned and the suffixes are
+    removed from releases.
+    """
+    new_releases = releases.copy()
+    for suffix in suffixes:
+        new_releases = [rel.removesuffix(suffix) for rel in new_releases]
+    if releases == new_releases:
+        # No suffixes were removed
+        return ''
+    # Mutate original list
+    for i in range(len(releases)):
+        releases[i] = new_releases[i]
+    return ';'.join(suffixes)
+
+
 def strip_prerelease_suffix(releases: list[str]) -> str:
     """Find and remove a standard prerelease suffix in the list of release numbers.
 
@@ -106,10 +124,11 @@ class AddProject:
     """Add a project to Anitya, if known."""
 
     def __init__(self, rm: rmapi.RMApi, host: hostingapi.HostingAPI,
-                 prefixes: Optional[list[str]] = None):
+                 prefixes: Optional[list[str]] = None, suffixes: Optional[list[str]] = None):
         self.rm = rm
         self.host = host
         self.prefixes = prefixes if prefixes else []
+        self.suffixes = suffixes if suffixes else []
 
     def create_project(self, backend: str, version_url: Optional[str], prefix: str, prerelease: str,
                        release: bool, project: ProjectData):
@@ -144,7 +163,10 @@ class AddProject:
                 return None
 
         # Strip a prerelease suffix, if any
-        prerelease = strip_prerelease_suffix(releases)
+        # Try the user-supplied suffixes first
+        prerelease = strip_prerelease_suffix_list(releases, self.suffixes)
+        if not prerelease:
+            prerelease = strip_prerelease_suffix(releases)
 
         # Look for prefixes that need to be removed
         prefixes = self.prefixes + [
@@ -200,7 +222,9 @@ class AddProject:
             return None
 
         # Strip a prerelease suffix, if any
-        prerelease = strip_prerelease_suffix(releases)
+        prerelease = strip_prerelease_suffix_list(releases, self.suffixes)
+        if not prerelease:
+            prerelease = strip_prerelease_suffix(releases)
 
         # Look for prefixes that need to be removed
         prefixes = self.prefixes + [
@@ -385,6 +409,13 @@ def main():
         action='append',
         default=[],
         help='Additional version prefix to try before standard ones like "v" and "ver-"')
+    parser.add_argument(
+        '--prerelease-suffix',
+        type=str,
+        action='append',
+        default=[],
+        help='Additional prerelease version suffix to try before standard ones like '
+             '"beta" and "-rc1"')
     args = parser.parse_args()
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO if args.verbose else logging.WARNING,
@@ -404,7 +435,7 @@ def main():
 
     host = hostingapi.HostingAPI(gh_token)
     ex = external.ExternalAPI()
-    ap = AddProject(rm, host, args.version_prefix)
+    ap = AddProject(rm, host, args.version_prefix, args.prerelease_suffix)
 
     for l in sys.stdin:
         l = l.strip()

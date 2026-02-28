@@ -133,6 +133,13 @@ automatically strip prefixes from package names to make more sensible project
 names in some cases, but, as always, carefully check your input data before
 mass creating projects.
 
+If you enable verbose or debug logging for `create-project`, you can go
+through the failures and try creating them again with adjusted options.
+Failures due to questionable tags can often be fixed with appropriate
+`--version-prefix` and `--prerelease-suffix` options customized for each
+new project. If you can verify another way that the URLs are correct, the
+`--no-external-check` will skip network or server problems.
+
 7. Any remaining projects will likely need to be created manually at r-m. These
 include those that require human knowledge and experience to determine what the
 best URL and means are to extract version updates. Use some discretion as
@@ -182,7 +189,7 @@ is given, verbose logging is enabled.
 ### metadata-parse
 
 This program reads the output of `rpm -qi` (or similar, such as `urpmq -i` and
-`dnf info`) for one or more packages and write the package name and URL, one
+`dnf info`) for one or more packages and writes the package name and URL, one
 package per line, as a space-separated project, package and URL string (each
 field can be single or double-quoted to embed a space). If the
 `--strip-project-prefix` option is present, the given prefix, if any is found,
@@ -332,7 +339,12 @@ than once, only the first one to match will be removed.
 There must be a means available to extract the version number from the tag used
 for the release, but if the common heuristics aren't sufficient (like stripping
 a leading "ver-") then the `--version-prefix` option can be given (one or more
-times) to provide additional alternate prefixes to try.
+times) to provide additional alternate prefixes to try. Similarly, the
+`--prerelease-suffix` option can be used to specify suffixes found on
+prerelease versions when the common heuristics aren't sufficient (like "rc"
+and "beta"). If at least one of the suffixes found using this option is found,
+then the entire set of these suffixes (and only those) is configured in the
+project to match future releases.
 
 Some ecosystems require that the project name match the ecosystem name, so in
 those cases the supplied project name is ignored.

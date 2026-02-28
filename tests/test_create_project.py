@@ -118,6 +118,28 @@ class TestStripPrereleaseSuffix(unittest.TestCase):
         self.assertEqual('', suffix)
 
 
+class TestStripPrereleaseSuffixList(unittest.TestCase):
+    """Test strip_prerelease_suffix_list."""
+
+    def test_strip_prerelease_suffix_list(self):
+        rel = ['v-1.2.3', 'v-99.rc1', 'v-0000.1rc', 'v-123.45_rc67']
+        suffix = create_project.strip_prerelease_suffix_list(rel, ['.rc1', '.rc2'])
+        self.assertEqual('.rc1;.rc2', suffix)
+        self.assertEqual(['v-1.2.3', 'v-99', 'v-0000.1rc', 'v-123.45_rc67'], rel)
+
+    def test_strip_prerelease_suffix_list_empty(self):
+        rel = ['v-1.2.3', 'v-99.rc1', 'v-0000.1rc', 'v-123.45_rc67']
+        suffix = create_project.strip_prerelease_suffix_list(rel, [])
+        self.assertEqual('', suffix)
+        self.assertEqual(['v-1.2.3', 'v-99.rc1', 'v-0000.1rc', 'v-123.45_rc67'], rel)
+
+    def test_strip_prerelease_suffix_list_none(self):
+        rel = ['v-1.2.3', 'v-99.rc1', 'v-0000.1rc', 'v-123.45_rc67']
+        suffix = create_project.strip_prerelease_suffix_list(rel, ['alpha', 'beta'])
+        self.assertEqual('', suffix)
+        self.assertEqual(['v-1.2.3', 'v-99.rc1', 'v-0000.1rc', 'v-123.45_rc67'], rel)
+
+
 class TestFindVersionPrefix(unittest.TestCase):
     """Test find_version_prefix."""
 
