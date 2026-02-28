@@ -329,6 +329,11 @@ If `--strip-project-prefix` is given, that prefix, if found, will be removed
 from the package name to make the project name. If this option is used more
 than once, only the first one to match will be removed.
 
+There must be a means available to extract the version number from the tag used
+for the release, but if the common heuristics aren't sufficient (like stripping
+a leading "ver-") then the `--version-prefix` option can be given (one or more
+times) to provide additional alternate prefixes to try.
+
 Some ecosystems require that the project name match the ecosystem name, so in
 those cases the supplied project name is ignored.
 

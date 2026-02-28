@@ -95,8 +95,8 @@ def strip_prerelease_suffix(releases: list[str]) -> str:
 
 def find_version_prefix(releases: list[str], extra: list[str]) -> Optional[str]:
     """Look for version prefixes that need to be removed to get a normal version number."""
-    for prefix in ['', 'v', 'V', 'ver-', 'release-', 'Release-', 'ver', 'Ver', 'version-',
-                   'Version-', 'v-', 'V-', 'Ver-'] + extra:
+    for prefix in [''] + extra + ['v', 'V', 'ver-', 'release-', 'Release-', 'ver', 'Ver',
+                                  'version-', 'Version-', 'v-', 'V-', 'Ver-']:
         if not any(not NUMERIC_VER_RE.search(r.removeprefix(prefix)) for r in releases):
             return prefix
     return None
@@ -105,9 +105,11 @@ def find_version_prefix(releases: list[str], extra: list[str]) -> Optional[str]:
 class AddProject:
     """Add a project to Anitya, if known."""
 
-    def __init__(self, rm: rmapi.RMApi, host: hostingapi.HostingAPI):
+    def __init__(self, rm: rmapi.RMApi, host: hostingapi.HostingAPI,
+                 prefixes: Optional[list[str]] = None):
         self.rm = rm
         self.host = host
+        self.prefixes = prefixes if prefixes else []
 
     def create_project(self, backend: str, version_url: Optional[str], prefix: str, prerelease: str,
                        release: bool, project: ProjectData):
@@ -145,7 +147,9 @@ class AddProject:
         prerelease = strip_prerelease_suffix(releases)
 
         # Look for prefixes that need to be removed
-        prefix = find_version_prefix(releases, [project.project + '-', repo + '-'])
+        prefixes = self.prefixes + [
+            project.project + '-v', repo + '-v', project.project + '-', repo + '-']
+        prefix = find_version_prefix(releases, prefixes)
         if prefix is None:
             logging.warning('Skipping %s due to questionable release tags', project.project)
             logging.debug('Tags: %s', repr(releases))
@@ -199,7 +203,9 @@ class AddProject:
         prerelease = strip_prerelease_suffix(releases)
 
         # Look for prefixes that need to be removed
-        prefix = find_version_prefix(releases, [project.project + '-', repo + '-'])
+        prefixes = self.prefixes + [
+            project.project + '-v', repo + '-v', project.project + '-', repo + '-']
+        prefix = find_version_prefix(releases, prefixes)
         if prefix is None:
             logging.warning('Skipping %s due to questionable release tags', project.project)
             logging.debug('Tags: %s', repr(releases))
@@ -359,7 +365,8 @@ def main():
         help='Add the package after creating the project')
     parser.add_argument(
         '--strip-project-prefix',
-        nargs='*',
+        type=str,
+        action='append',
         default=[],
         help='Strip one of these prefixes from the package name to create the project name')
     parser.add_argument(
@@ -372,6 +379,12 @@ def main():
         type=int,
         default=5 * 365,
         help='Maximum age of the upstream project in days above which it is not created')
+    parser.add_argument(
+        '--version-prefix',
+        type=str,
+        action='append',
+        default=[],
+        help='Additional version prefix to try before standard ones like "v" and "ver-"')
     args = parser.parse_args()
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO if args.verbose else logging.WARNING,
@@ -391,7 +404,7 @@ def main():
 
     host = hostingapi.HostingAPI(gh_token)
     ex = external.ExternalAPI()
-    ap = AddProject(rm, host)
+    ap = AddProject(rm, host, args.version_prefix)
 
     for l in sys.stdin:
         l = l.strip()

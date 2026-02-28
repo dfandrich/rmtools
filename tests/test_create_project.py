@@ -146,6 +146,11 @@ class TestFindVersionPrefix(unittest.TestCase):
         stripped = create_project.find_version_prefix(rel, ['abc', 'XYZ-', '_'])
         self.assertEqual('XYZ-', stripped)
 
+    def test_find_version_prefix_extra_none(self):
+        rel = ['1.2.3', '99', '0000.1']
+        stripped = create_project.find_version_prefix(rel, ['abc'])
+        self.assertEqual('', stripped)
+
 
 class TestProjectPrefix(unittest.TestCase):
     """Test strip_project_prefix."""
