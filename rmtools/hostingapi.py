@@ -66,12 +66,17 @@ GITLAB_API_URL = 'https://gitlab.com/api/v4'
 GITLAB_BASE_URL = GITLAB_API_URL + '/projects/{namespace}%2F{project}'
 GITLAB_COM_PAGES_URL = 'https://{namespace}.gitlab.io/{project}'
 GITLAB_TAGS_URL = GITLAB_BASE_URL + '/repository/tags'
+GITLAB_INACTIVE_URL = GITLAB_API_URL + '/projects?search={namespace}+{project}&simple=true&active=false'
 
 # Note this is a two-stage template: first state is to replace the domain only
 PRIVATE_GITLAB_API_URL = 'https://{domain}/api/v4'
 PRIVATE_GITLAB_BASE_URL = PRIVATE_GITLAB_API_URL + '/projects/{{namespace}}%2F{{project}}'
 # Note this is a two-stage template: first state is to replace the domain only
 PRIVATE_GITLAB_PAGES_URL = 'https://{{namespace}}.pages.{domain}/{{project}}'
+# Note this is a two-stage template: first state is to replace the domain only
+# This URL is not reliable, since private instances can move archived projects so the namespace
+# no longer matches (e.g. gitlab.gnome.org moves them to "Archive")
+PRIVATE_GITLAB_INACTIVE_URL = PRIVATE_GITLAB_API_URL + '/projects?search={{namespace}}+{{project}}&simple=true&active=false'
 
 # See https://api.launchpad.net/devel.html
 LAUNCHPAD_API_URL = 'https://launchpad.net/api/devel/'
@@ -473,8 +478,8 @@ class HostingAPI:
             return []
         return [r['name'] for r in json.loads(resp.text)]
 
-    def _get_gitlab_info(self, base_url_tmpl: str, pages_url_tmpl: str, url: str
-                         ) -> Optional[ProjInfo]:
+    def _get_gitlab_info(self, base_url_tmpl: str, pages_url_tmpl: str, inactive_url_tmpl: str,
+                         url: str) -> Optional[ProjInfo]:
         """Retrieves the home page URL set for a Gitlab project.
 
         See https://docs.gitlab.com/api/rest/
@@ -482,6 +487,7 @@ class HostingAPI:
         Args:
             base_url_tmpl: base API URL template
             pages_url_tmpl: project web pages URL template
+            inactive_url_tmpl: inactive page search template
             url: the canonical URL for the Gitlab project
         """
         namespace, project = self._get_generic_project_name(url)
@@ -513,11 +519,31 @@ class HostingAPI:
                     # be right than wrong.
                     urls.append(extract_link(desc))
                 last_modified = parse_iso8601(meta['last_activity_at'])
+
                 # This field is documented to be there but in practise doesn't seem to be. Maybe
                 # it's only available when authenticated?
                 if 'archived' in meta:
                     status = (ProjInfo.ProjStatus.INVALID if meta['archived']
                               else ProjInfo.ProjStatus.VALID)
+                elif inactive_url_tmpl:
+                    # Make a separate call to see if it's inactive
+                    resp = self.req.get(inactive_url_tmpl.format(
+                                        namespace=namespace, project=project),
+                                        headers=headers, timeout=netreq.TIMEOUT)
+                    try:
+                        resp.raise_for_status()
+                    except netreq.HTTPError as e:
+                        logging.info('Error retrieving data for %s (%s: %s)',
+                                     url, e.response.status_code, e.response.reason)
+                    else:
+                        inactive = json.loads(resp.text)
+                        for found in inactive:
+                            if found['path_with_namespace'] == f'{namespace}/{project}':
+                                status = ProjInfo.ProjStatus.INVALID
+                                break
+                        else:
+                            # If site does not appear in the search, it must be active
+                            status = ProjInfo.ProjStatus.VALID
 
         # Some projects have a "GitLab Pages" link in their project overview page but it isn't
         # included in the project's JSON dump. Until we can figure out how to tell when it's
@@ -532,7 +558,7 @@ class HostingAPI:
         Args:
             url: the canonical URL for the project
         """
-        return self._get_gitlab_info(GITLAB_BASE_URL, GITLAB_COM_PAGES_URL, url)
+        return self._get_gitlab_info(GITLAB_BASE_URL, GITLAB_COM_PAGES_URL, GITLAB_INACTIVE_URL, url)
 
     def get_private_gitlab_info(self, url: str) -> Optional[ProjInfo]:
         """Retrieves info for a standardized private Gitlab project.
@@ -544,7 +570,9 @@ class HostingAPI:
         _, domain, _, _, _ = parse.urlsplit(url)
         base_api_tmpl = PRIVATE_GITLAB_BASE_URL.format(domain=domain)
         base_pages_tmpl = PRIVATE_GITLAB_PAGES_URL.format(domain=domain)
-        return self._get_gitlab_info(base_api_tmpl, base_pages_tmpl, url)
+        # This is unreliable, so don't use it
+        # inactive_api_tmpl = PRIVATE_GITLAB_INACTIVE_URL.format(domain=domain)
+        return self._get_gitlab_info(base_api_tmpl, base_pages_tmpl, '', url)
 
     def _get_gitlab_tags(self, tags_url: str, url: str) -> list[str]:
         """Retrieves a list of tags for a Gitlab project.
@@ -594,7 +622,7 @@ class HostingAPI:
         bare_domain = domain.replace('gitlab.', '')
         base_api_tmpl = PRIVATE_GITLAB_BASE_URL.format(domain=domain)
         base_pages_tmpl = PRIVATE_GITLAB_PAGES_URL.format(domain=bare_domain)
-        return self._get_gitlab_info(base_api_tmpl, base_pages_tmpl, url)
+        return self._get_gitlab_info(base_api_tmpl, base_pages_tmpl, '', url)
 
     def get_pypi_info(self, url: str) -> Optional[ProjInfo]:
         """Retrieves info for a PyPi project.
