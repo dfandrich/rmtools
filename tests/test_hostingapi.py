@@ -159,22 +159,6 @@ class TestParsePom(unittest.TestCase):
              'https://www.example.com/rmtools/v1.2.3/art/xyzzy?enc=UTF-8'])
 
 
-class TestParseLpRdf(unittest.TestCase):
-    """Test parse_lp_rdf."""
-
-    def test_parse_lp_rdf(self):
-        content = textwrap.dedent(r"""<?xml version="1.0" encoding="utf-8"?>
-            <rdf:RDF xmlns:doaml="http://ns.balbinus.net/doaml#" xmlns:foaf="http://xmlns.com/foaf/0.1/" xmlns:lp="https://launchpad.net/rdf/launchpad#" xmlns:wot="http://xmlns.com/wot/0.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-                <lp:Product>
-                <lp:homepage rdf:resource="http://example.com/prjhome"/>
-                </lp:Product>
-            </rdf:RDF>
-        """)
-        self.assertCountEqual(
-            hostingapi.parse_lp_rdf(content),
-            ['http://example.com/prjhome'])
-
-
 class TestParseSavannah(unittest.TestCase):
     """Test parse_savannah."""
 

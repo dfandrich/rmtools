@@ -73,8 +73,10 @@ PRIVATE_GITLAB_BASE_URL = PRIVATE_GITLAB_API_URL + '/projects/{{namespace}}%2F{{
 # Note this is a two-stage template: first state is to replace the domain only
 PRIVATE_GITLAB_PAGES_URL = 'https://{{namespace}}.pages.{domain}/{{project}}'
 
-LAUNCHPAD_API_URL = 'https://launchpad.net'
-LAUNCHPAD_BASE_URL = LAUNCHPAD_API_URL + '/{project}/+rdf'
+# See https://api.launchpad.net/devel.html
+LAUNCHPAD_API_URL = 'https://launchpad.net/api/devel/'
+LAUNCHPAD_BASE_URL = LAUNCHPAD_API_URL + '{project}'
+LAUNCHPAD_OP_URL = LAUNCHPAD_BASE_URL + '?ws.op={op}{extra}'
 
 GNUSV_API_URL = 'https://savannah.gnu.org'
 GNUSV_BASE_URL = GNUSV_API_URL + '/projects/{project}'
@@ -197,20 +199,6 @@ def parse_pom(xml: str) -> list[str]:
 
     # Template substitution on all URLs
     return [substitute_el_expression(url, properties) for url in rawurls]
-
-
-def parse_lp_rdf(xml: str) -> list[str]:
-    """Parse a Launchpad.net RDF file to extract useful URLS."""
-    ns = {'rdf': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
-          'lp': 'https://launchpad.net/rdf/launchpad#'}
-    resource_tag = f'{{{ns["rdf"]}}}resource'
-    root = ET.fromstring(xml)
-    urls = []
-    if ((el_product := root.find('lp:Product', ns)) is not None
-        and (el_homepage := el_product.find('lp:homepage', ns)) is not None
-            and (homepage := el_homepage.attrib.get(resource_tag, ''))):
-        urls.append(homepage)
-    return urls
 
 
 def extract_link(text: str) -> str:
@@ -976,8 +964,22 @@ class HostingAPI:
         headers = {'Accept': XML_DATA_TYPE,
                    'User-Agent': netreq.USER_AGENT
                    }
-        resp = self.req.get(LAUNCHPAD_BASE_URL.format(project=project), headers=headers,
-                            timeout=netreq.TIMEOUT)
+        # Retrieve main project info
+        resp = self.req.get(LAUNCHPAD_BASE_URL.format(project=project),
+                            headers=headers, timeout=netreq.TIMEOUT)
+        try:
+            resp.raise_for_status()
+        except netreq.HTTPError as e:
+            logging.info('Error retrieving data for %s (%s: %s)',
+                         url, e.response.status_code, e.response.reason)
+            return None
+        info = json.loads(resp.text)
+        urls = [info['homepage_url']]
+
+        # Retrieve the timeline to get release dates
+        resp = self.req.get(LAUNCHPAD_OP_URL.format(
+            project=project, op='get_timeline', extra='&include_inactive=false'),
+            headers=headers, timeout=netreq.TIMEOUT)
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
@@ -985,21 +987,18 @@ class HostingAPI:
                          url, e.response.status_code, e.response.reason)
             return None
 
-        # Return the metadata from the RDF file
-        try:
-            urls = parse_lp_rdf(resp.text)
-        except ET.ParseError:
-            logging.info('Could not parse Launchpad RDF file for %s', project)
-            return None
-
-        # TODO: find a better status
-        status = ProjInfo.ProjStatus.UNKNOWN
-        # TODO: get the modified date
-        # Need to load all lp:ProductSeries and all their lp:ProductRelease to find
-        # the latest lp:creationDate (which could be hundreds). Some projects just have
-        # lp:ProductSeries then lp:release.
-        # Actually, just use the JSON API instead: https://api.launchpad.net/devel.html#projects
+        # Find the most recent date of all releases.
+        # The API might not give us everything, but they should be in reverse order,
+        # so we might be able to get away with just using the first one found.
         last_modified = None
+        timeline = json.loads(resp.text)
+        for entry in timeline['entries']:
+            for landmark in entry['landmarks']:
+                if landmark['date']:
+                    lm_date = datetime.datetime.strptime(landmark['date'] + 'Z', '%Y-%m-%d%z')
+                    last_modified = max(last_modified, lm_date) if last_modified else lm_date
+
+        status = ProjInfo.ProjStatus.VALID if info['active'] else ProjInfo.ProjStatus.INVALID
         urls = [url for url in urls if url]
         return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
