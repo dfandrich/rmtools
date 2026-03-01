@@ -63,6 +63,9 @@ CPAN_MATCH_RE = re.compile(r'^//search\.cpan\.org/dist/([^/#?]+)(/)?$')
 # Map MetaCPAN URLs to new location
 METAREL_MATCH_RE = re.compile(r'^//metacpan\.org/release/([^/#?]+)(/)?$')
 
+# Map MetaCPAN POD URLs
+METAPOD_MATCH_RE = re.compile(r'^//metacpan\.org/pod/([^/#?]+)(/)?$')
+
 # Map Pagure release URLs to main page
 PAGURE_RELEASE_MATCH_RE = re.compile(r'^//releases\.pagure\.org/([^/#?]+)')
 
@@ -193,6 +196,8 @@ def canonicalize_url(url: str, strip_scheme: bool = True) -> str:
         return scheme + f'//metacpan.org/dist/{r[1]}'
     if r := METAREL_MATCH_RE.search(url):
         return scheme + f'//metacpan.org/dist/{r[1]}'
+    if r := METAPOD_MATCH_RE.search(url):
+        return scheme + f'//metacpan.org/dist/{r[1].replace("::", "-")}'
     if (r := PAGURE_RELEASE_MATCH_RE.search(url)) or (r := PAGUREORG_MATCH_RE.search(url)):
         return scheme + f'//pagure.io/{r[1]}'
     if (r := GNU_MATCH_RE.search(url)) or (r := GNUFTP_MATCH_RE.search(url)):

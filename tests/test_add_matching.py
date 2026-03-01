@@ -83,6 +83,7 @@ class TestCanonicalize(unittest.TestCase):
             ('https://search.cpan.org/dist/xyzzy', '//metacpan.org/dist/xyzzy'),
             ('https://metacpan.org/release/xyzzy', '//metacpan.org/dist/xyzzy'),
             ('https://metacpan.org/dist/xyzzy/', '//metacpan.org/dist/xyzzy'),
+            ('https://metacpan.org/pod/CGI::Foo::Bar', '//metacpan.org/dist/CGI-Foo-Bar'),
             ('https://releases.pagure.org/some-project/', '//pagure.io/some-project'),
             ('https://pagure.org/some-project/', '//pagure.io/some-project'),
             ('https://gitlab.com/user-only/', '//gitlab.com/user-only'),
