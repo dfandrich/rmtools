@@ -39,6 +39,12 @@ GIO_HOMEPAGE_MATCH_RE = re.compile(r'^//([^/.]+)\.github\.io/([^/#?]+)')
 # Match a gitlab URL
 GL_MATCH_RE = re.compile(r'^(?P<domain>//gitlab\.com/)(((?P<path1>[^/#?]+/[^/#?]+)(/)?$)|((?P<path2>[^/#?]+/[^/#?]+)/-/))')
 
+# Match a codeberg URL
+CODEBERG_MATCH_RE = re.compile(r'^(//codeberg\.org/[^/#?]+/[^/#?]+)')
+
+# Match a Fedora Forge URL
+FEDORAFORGE_MATCH_RE = re.compile(r'^(//forge\.fedoraproject\.org/[^/#?]+/[^/#?]+)')
+
 # Map Python PyPi URLs to new location
 PYPIPY_MATCH_RE = re.compile(r'^//pypi\.python\.org/(?:pypi|project)/([^/#?]+)')
 
@@ -184,6 +190,8 @@ def canonicalize_url(url: str, strip_scheme: bool = True) -> str:
     # TODO: handle gitlab.com multi-level namespaces (if possible)
     if r := GL_MATCH_RE.search(url):
         return scheme + r.group('domain') + (r.group('path1') or '') + (r.group('path2') or '')
+    if (r := CODEBERG_MATCH_RE.search(url)) or (r := FEDORAFORGE_MATCH_RE.search(url)):
+        return scheme + r.group(1)
     if ((r := PYPIPY_MATCH_RE.search(url)) or (r := PYTHONHOSTED_MATCH_RE.search(url))
             or (r := PYTHONHOSTED_HOME_MATCH_RE.search(url))):
         module = r.group(1).replace('_', '-')

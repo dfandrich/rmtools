@@ -78,6 +78,15 @@ PRIVATE_GITLAB_PAGES_URL = 'https://{{namespace}}.pages.{domain}/{{project}}'
 # no longer matches (e.g. gitlab.gnome.org moves them to "Archive")
 PRIVATE_GITLAB_INACTIVE_URL = PRIVATE_GITLAB_API_URL + '/projects?search={{namespace}}+{{project}}&simple=true&active=false'
 
+# See https://codeberg.org/api/swagger
+CODEBERG_API_URL = 'https://codeberg.org/api/v1'
+CODEBERG_BASE_URL = CODEBERG_API_URL + '/repos/{owner}/{repo}'
+CODEBERG_PAGES_URL = 'https://{owner}.codeberg.page/{repo}'
+
+FEDORAFORGE_API_URL = 'https://forge.fedoraproject.org/api/v1'
+FEDORAFORGE_BASE_URL = FEDORAFORGE_API_URL + '/repos/{owner}/{repo}'
+# There doesn't seem to be a pages URL for projects hosted here
+
 # See https://api.launchpad.net/devel.html
 LAUNCHPAD_API_URL = 'https://launchpad.net/api/devel/'
 LAUNCHPAD_BASE_URL = LAUNCHPAD_API_URL + '{project}'
@@ -129,6 +138,8 @@ def parse_iso8601(stamp: str) -> datetime.datetime:
         return datetime.datetime.strptime(stamp, '%Y-%m-%dT%H:%M:%S.%f%z')
     if 'Z' in stamp:
         return datetime.datetime.strptime(stamp, '%Y-%m-%dT%H:%M:%S%z')
+    if '+' in stamp:
+        return datetime.datetime.fromisoformat(stamp)
     return datetime.datetime.strptime(stamp + 'Z', '%Y-%m-%dT%H:%M:%S%z')
 
 
@@ -623,6 +634,73 @@ class HostingAPI:
         base_api_tmpl = PRIVATE_GITLAB_BASE_URL.format(domain=domain)
         base_pages_tmpl = PRIVATE_GITLAB_PAGES_URL.format(domain=bare_domain)
         return self._get_gitlab_info(base_api_tmpl, base_pages_tmpl, '', url)
+
+    def _get_forgejo_info(self, base_url_tmpl: str, pages_url_tmpl: str,
+                          url: str) -> Optional[ProjInfo]:
+        """Retrieves the home page URL set for a Forgejo project.
+
+        See https://codeberg.org/api/swagger
+
+        Args:
+            base_url_tmpl: base API URL template
+            pages_url_tmpl: project web pages URL template
+            url: the canonical URL for the project
+        """
+        owner, repo = self._get_generic_project_name(url)
+        if not owner or not repo or unsafe_path(owner) or unsafe_path(repo):
+            return None
+
+        urls = []
+        last_modified = None
+        status = ProjInfo.ProjStatus.UNKNOWN
+        headers = {'Accept': JSON_DATA_TYPE,
+                   'User-Agent': netreq.USER_AGENT
+                   }
+        resp = self.req.get(base_url_tmpl.format(owner=owner, repo=repo),
+                            headers=headers, timeout=netreq.TIMEOUT)
+        try:
+            resp.raise_for_status()
+        except netreq.HTTPError as e:
+            logging.info('Error retrieving data for %s (%s: %s)',
+                         url, e.response.status_code, e.response.reason)
+            return None
+
+        meta = json.loads(resp.text)
+        status = ProjInfo.ProjStatus.INVALID if meta['archived'] else ProjInfo.ProjStatus.VALID
+        last_modified = parse_iso8601(meta['updated_at'])
+
+        urls = [meta['website']] if meta['website'] else []
+        # Whether a Codeberg pages site is available isn't available in the repo JSON dump,
+        # so add it unconditionally.
+        urls.append(pages_url_tmpl.format(owner=owner, repo=repo))
+
+        # html_url could be different from that requested if the repository was redirected
+        # (not sure if Forgejo actually does this kind of redirect)
+        if meta['html_url'] and (owner, repo) != self._get_generic_project_name(meta['html_url']):
+            urls.append(meta['html_url'])
+        if meta['fork']:
+            # TODO: maybe this information should be put into ProjInfo instead
+            logging.info('Note: project is not original but a fork (%s)', url)
+        return ProjInfo(
+            status=status,
+            last_modified=last_modified,
+            urls=urls)
+
+    def get_codeberg_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves info for a codeberg.org project.
+
+        Args:
+            url: the canonical URL for the project
+        """
+        return self._get_forgejo_info(CODEBERG_BASE_URL, CODEBERG_PAGES_URL, url)
+
+    def get_fedoraforge_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves info for a forge.fedoraproject.org project.
+
+        Args:
+            url: the canonical URL for the project
+        """
+        return self._get_forgejo_info(FEDORAFORGE_BASE_URL, '', url)
 
     def get_pypi_info(self, url: str) -> Optional[ProjInfo]:
         """Retrieves info for a PyPi project.
@@ -1157,6 +1235,12 @@ class HostingAPI:
 
         if netloc in frozenset({'gitlab.freedesktop.org', 'gitlab.xfce.org'}):
             return self.get_shortpages_gitlab_info(url)
+
+        if netloc == 'codeberg.org':
+            return self.get_codeberg_info(url)
+
+        if netloc == 'forge.fedoraproject.org':
+            return self.get_fedoraforge_info(url)
 
         if netloc == 'pypi.org':
             return self.get_pypi_info(url)

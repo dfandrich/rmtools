@@ -57,7 +57,10 @@ class TestParseIso8601(unittest.TestCase):
             ('2016-01-02T19:46:55',
              datetime.datetime(2016, 1, 2, 19, 46, 55, tzinfo=datetime.timezone.utc)),
             ('2023-07-12T19:09:25.110Z',
-             datetime.datetime(2023, 7, 12, 19, 9, 25, 110000, tzinfo=datetime.timezone.utc))
+             datetime.datetime(2023, 7, 12, 19, 9, 25, 110000, tzinfo=datetime.timezone.utc)),
+            ('2025-01-19T20:28:37+01:00',
+             datetime.datetime(2025, 1, 19, 20, 28, 37,
+                               tzinfo=datetime.timezone(datetime.timedelta(seconds=3600))))
         ]:
             with self.subTest(text=text, stamp=stamp):
                 self.assertEqual(hostingapi.parse_iso8601(text), stamp)
