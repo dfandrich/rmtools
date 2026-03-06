@@ -122,6 +122,33 @@ class TestGetGenericProjectName(unittest.TestCase):
                          ha._get_generic_project_name('https://github.com/too-few-paths'))
 
 
+class TestGetPagureRepo(unittest.TestCase):
+    """Test get_pagure_repo."""
+
+    def test_get_pagure_repo(self):
+        for repo, url in [
+            ('project', 'https://pagure.io/project'),
+            ('project', 'https://pagure.io/project/'),
+            ('two/level', 'https://pagure.io/two/level'),
+            ('rpms/rpmname', 'https://src.fedoraproject.org/rpms/rpmname/'),
+            ('two/level', 'https://pagure.io/two/level/more/internal/stuff'),
+            ('single', 'https://pagure.io/single/tree/master'),
+            ('single', 'https://pagure.io/single/releases'),
+            ('golist', 'https://pagure.io/golist/archive/v0.10.3/golist-0.10.3.tar.gz'),
+            ('golist', 'https://pagure.io/golist/blob/master/f/README.md')
+        ]:
+            with self.subTest(repo=repo, url=url):
+                self.assertEqual(hostingapi.get_pagure_repo(url), repo)
+
+    def test_get_pagure_repo_none(self):
+        for url in [
+            'https://pagure.io/docs/project',
+            'https://pagure.io/api/0/project',
+        ]:
+            with self.subTest(url=url):
+                self.assertEqual(hostingapi.get_pagure_repo(url), '')
+
+
 class TestParsePom(unittest.TestCase):
     """Test parse_pom."""
 

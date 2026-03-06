@@ -72,11 +72,11 @@ METAREL_MATCH_RE = re.compile(r'^//metacpan\.org/release/([^/#?]+)(/)?$')
 # Map MetaCPAN POD URLs
 METAPOD_MATCH_RE = re.compile(r'^//metacpan\.org/pod/([^/#?]+)(/)?$')
 
-# Map Pagure release URLs to main page
-PAGURE_RELEASE_MATCH_RE = re.compile(r'^//releases\.pagure\.org/([^/#?]+)')
+# Map Pagure URLs to main page
+PAGURE_MATCH_RE = re.compile(r'^//(pagure\.io|releases\.pagure\.org|pagure\.org)/([^/#?]+)(/([^/#?]+))?')
 
-# Map Pagure release URLs to new URL
-PAGUREORG_MATCH_RE = re.compile(r'^//pagure\.org/([^/#?]+)')
+# Map src.fedoraproject.org URLs (Pagure instance) to main page
+SRCFEDORA_MATCH_RE = re.compile(r'^//src\.fedoraproject\.org/([^/#?]+)(/([^/#?]+))?')
 
 # Match any GNU project page URL
 GNU_MATCH_RE = re.compile(r'^//gnu\.org/software/([^/#?]+)')
@@ -206,8 +206,10 @@ def canonicalize_url(url: str, strip_scheme: bool = True) -> str:
         return scheme + f'//metacpan.org/dist/{r[1]}'
     if r := METAPOD_MATCH_RE.search(url):
         return scheme + f'//metacpan.org/dist/{r[1].replace("::", "-")}'
-    if (r := PAGURE_RELEASE_MATCH_RE.search(url)) or (r := PAGUREORG_MATCH_RE.search(url)):
-        return scheme + f'//pagure.io/{r[1]}'
+    if (r := PAGURE_MATCH_RE.search(url)) and (pagure := hostingapi.get_pagure_repo(url)):
+        return scheme + f'//pagure.io/{pagure}'
+    if (r := SRCFEDORA_MATCH_RE.search(url)) and (pagure := hostingapi.get_pagure_repo(url)):
+        return scheme + f'//src.fedoraproject.org/{pagure}'
     if (r := GNU_MATCH_RE.search(url)) or (r := GNUFTP_MATCH_RE.search(url)):
         return scheme + f'//gnu.org/software/{r[1]}'
     if (r := GNUSAV_MATCH_RE.search(url)) or (r := GNUSAVDL_MATCH_RE.search(url)):

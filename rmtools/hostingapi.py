@@ -87,6 +87,15 @@ FEDORAFORGE_API_URL = 'https://forge.fedoraproject.org/api/v1'
 FEDORAFORGE_BASE_URL = FEDORAFORGE_API_URL + '/repos/{owner}/{repo}'
 # There doesn't seem to be a pages URL for projects hosted here
 
+# See https://pagure.io/api/0/
+PAGUREIO_API_URL = 'https://pagure.io/api/0'
+PAGUREIO_BASE_URL = PAGUREIO_API_URL + '/{repo}'
+PAGUREIO_TAGS_URL = PAGUREIO_BASE_URL + '/git/tags'
+
+SRCFEDORA_API_URL = 'https://src.fedoraproject.org/api/0'
+SRCFEDORA_BASE_URL = SRCFEDORA_API_URL + '/{repo}'
+SRCFEDORA_TAGS_URL = SRCFEDORA_BASE_URL + '/git/tags'
+
 # See https://api.launchpad.net/devel.html
 LAUNCHPAD_API_URL = 'https://launchpad.net/api/devel/'
 LAUNCHPAD_BASE_URL = LAUNCHPAD_API_URL + '{project}'
@@ -367,6 +376,47 @@ def parse_ocaml(html: str) -> Optional[ProjInfo]:
         last_modified = None
     urls = [url for url in parser.urls if url]
     return ProjInfo(status=status, last_modified=last_modified, urls=urls)
+
+
+def get_pagure_repo(url: str) -> str:
+    """Return the repo or namespace/repo to use from a Pagure URL.
+
+    Since it can be a two level name, use heuristics to try to figure out which one it is.
+    Unfortunately, it may not be perfect.
+    """
+    scheme, netloc, path, query, fragment = parse.urlsplit(url)
+    parts = path.split('/')
+
+    # Empty
+    if len(parts) < 2:
+        return ''
+
+    # One level
+    # Make sure it's not a special top-level name
+    # We might be able to derive the repo from the rest of the URL, but it's not currently
+    # worth the bother.
+    if parts[1] in frozenset({'api', 'docs', 'fork', 'user'}):
+        return ''
+
+    if len(parts) == 2 or len(parts) == 3 and not parts[2]:
+        return parts[1]
+
+    # Possibly Two levels
+    # If the second level is a magic name, it's actually just one level
+    if parts[2] in frozenset({'archive', 'blame', 'blob', 'boards', 'branches', 'c' 'commits',
+                              'forks', 'history', 'issue', 'issues', 'pull-request',
+                              'pull-requests', 'raw', 'releases', 'roadmap', 'stats', 'tree'}):
+        return parts[1]
+
+    # We assume that a URL on the releases host points to a file, so it needs one more
+    # URL part (the file name) than the other hosts. This isn't a perfect heuristic but
+    # it should be generally more accurate.
+    if (netloc.lower() == 'releases.pagure.org'
+       and (len(parts) == 3 or len(parts) == 4 and not parts[3])):
+        return parts[1]
+
+    # Two levels
+    return f'{parts[1]}/{parts[2]}'
 
 
 class HostingAPI:
@@ -701,6 +751,104 @@ class HostingAPI:
             url: the canonical URL for the project
         """
         return self._get_forgejo_info(FEDORAFORGE_BASE_URL, '', url)
+
+    def _get_pagure_info(self, base_url_tmpl: str, url: str) -> Optional[ProjInfo]:
+        """Retrieves interesting metadata about a Pagure project.
+
+        See https://pagure.io/api/0/
+
+        Args:
+            base_url_tmpl: base API URL template
+            url: the canonical URL for the Pagure project
+        """
+        repo = get_pagure_repo(url)
+        if not repo or unsafe_path(repo.replace('/', '')):
+            return None
+
+        headers = {'Accept': JSON_DATA_TYPE,
+                   'User-Agent': netreq.USER_AGENT
+                   }
+        resp = self.req.get(base_url_tmpl.format(repo=repo), headers=headers,
+                            timeout=netreq.TIMEOUT)
+        try:
+            resp.raise_for_status()
+        except netreq.HTTPError as e:
+            logging.info('Error retrieving data for %s (%s: %s)',
+                         url, e.response.status_code, e.response.reason)
+            return None
+
+        meta = json.loads(resp.text)
+        # TODO: find a better status
+        status = ProjInfo.ProjStatus.UNKNOWN
+        last_modified = datetime.datetime.fromtimestamp(int(meta['date_modified']),
+                                                        tz=datetime.timezone.utc)
+        # TODO: A project can set a URL, but there doesn't seem to be a way to get it via the API
+        urls = []  # type: list[str]
+        return ProjInfo(
+            status=status,
+            last_modified=last_modified,
+            urls=urls)
+
+    def get_pagureio_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves interesting metadata about a Pagure project.
+
+        See https://pagure.io/api/0/
+
+        Args:
+            url: the canonical URL for the Pagure project
+        """
+        return self._get_pagure_info(PAGUREIO_BASE_URL, url)
+
+    def get_srcfedora_info(self, url: str) -> Optional[ProjInfo]:
+        """Retrieves interesting metadata about a src.fedoraproject.org project.
+
+        Args:
+            url: the canonical URL for the Pagure project
+        """
+        return self._get_pagure_info(SRCFEDORA_BASE_URL, url)
+
+    def _get_pagure_tags(self, base_url_tmpl: str, url: str) -> list[str]:
+        """Retrieves a list of tags for a Pagure project.
+
+        See https://pagure.io/api/0/#projects-tab
+
+        Args:
+            base_url_tmpl: base API URL template
+            url: the canonical URL for the Pagure project
+        """
+        repo = get_pagure_repo(url)
+        if not repo or unsafe_path(repo.replace('/', '')):
+            return []
+
+        headers = {'Accept': JSON_DATA_TYPE,
+                   'User-Agent': netreq.USER_AGENT
+                   }
+        resp = self.req.get(base_url_tmpl.format(repo=repo), headers=headers,
+                            timeout=netreq.TIMEOUT)
+        try:
+            resp.raise_for_status()
+        except netreq.HTTPError as e:
+            logging.info('Error retrieving data for %s (%s: %s)',
+                         url, e.response.status_code, e.response.reason)
+            return []
+
+        return list(json.loads(resp.text)['tags'])
+
+    def get_pagureio_tags(self, url: str) -> list[str]:
+        """Retrieves a list of tags for a Pagure project.
+
+        Args:
+            url: the canonical URL for the Pagure project
+        """
+        return self._get_pagure_tags(PAGUREIO_TAGS_URL, url)
+
+    def get_srcfedora_tags(self, url: str) -> list[str]:
+        """Retrieves a list of tags for the src.fedoraproject.org project.
+
+        Args:
+            url: the canonical URL for the the src.fedoraproject.org project
+        """
+        return self._get_pagure_tags(SRCFEDORA_TAGS_URL, url)
 
     def get_pypi_info(self, url: str) -> Optional[ProjInfo]:
         """Retrieves info for a PyPi project.
@@ -1241,6 +1389,12 @@ class HostingAPI:
 
         if netloc == 'forge.fedoraproject.org':
             return self.get_fedoraforge_info(url)
+
+        if netloc == 'pagure.io':
+            return self.get_pagureio_info(url)
+
+        if netloc == 'src.fedoraproject.org':
+            return self.get_srcfedora_info(url)
 
         if netloc == 'pypi.org':
             return self.get_pypi_info(url)
