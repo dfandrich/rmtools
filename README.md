@@ -376,7 +376,9 @@ to create a new matching project in Anitya, so don't do it.
 
 These are the project hosts for which creation is supported:
 
+* codeberg.org
 * crates.io
+* forge.fedoraproject.org
 * github.com
 * gitlab.com
 * metacpan.org

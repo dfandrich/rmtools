@@ -81,10 +81,14 @@ PRIVATE_GITLAB_INACTIVE_URL = PRIVATE_GITLAB_API_URL + '/projects?search={{names
 # See https://codeberg.org/api/swagger
 CODEBERG_API_URL = 'https://codeberg.org/api/v1'
 CODEBERG_BASE_URL = CODEBERG_API_URL + '/repos/{owner}/{repo}'
+CODEBERG_RELEASES_URL = CODEBERG_BASE_URL + '/releases'
+CODEBERG_TAGS_URL = CODEBERG_BASE_URL + '/tags'
 CODEBERG_PAGES_URL = 'https://{owner}.codeberg.page/{repo}'
 
 FEDORAFORGE_API_URL = 'https://forge.fedoraproject.org/api/v1'
 FEDORAFORGE_BASE_URL = FEDORAFORGE_API_URL + '/repos/{owner}/{repo}'
+FEDORAFORGE_RELEASES_URL = FEDORAFORGE_BASE_URL + '/releases'
+FEDORAFORGE_TAGS_URL = FEDORAFORGE_BASE_URL + '/tags'
 # There doesn't seem to be a pages URL for projects hosted here
 
 # See https://pagure.io/api/0/
@@ -751,6 +755,64 @@ class HostingAPI:
             url: the canonical URL for the project
         """
         return self._get_forgejo_info(FEDORAFORGE_BASE_URL, '', url)
+
+    def _get_forgejo_tags(self, base_url_tmpl: str, url: str) -> list[str]:
+        """Retrieves a list of tags for a Forgejo project.
+
+        Args:
+            base_url_tmpl: base API URL template
+            url: the canonical URL for the Forgejo project
+        """
+        owner, repo = self._get_generic_project_name(url)
+        if not owner or not repo or unsafe_path(owner) or unsafe_path(repo):
+            return []
+
+        headers = {'Accept': JSON_DATA_TYPE,
+                   'User-Agent': netreq.USER_AGENT
+                   }
+        resp = self.req.get(base_url_tmpl.format(owner=owner, repo=repo),
+                            headers=headers, timeout=netreq.TIMEOUT)
+        try:
+            resp.raise_for_status()
+        except netreq.HTTPError as e:
+            logging.info('Error retrieving data for %s (%s: %s)',
+                         url, e.response.status_code, e.response.reason)
+            return []
+
+        # Use tag_name if found (in releases only) otherwise name (in tags and releases)
+        return [tag.get('tag_name', tag['name']) for tag in json.loads(resp.text)]
+
+    def get_codeberg_releases(self, url: str) -> list[str]:
+        """Retrieves a list of releases for a Codeberg project.
+
+        Args:
+            url: the canonical URL for the Codeberg project
+        """
+        return self._get_forgejo_tags(CODEBERG_RELEASES_URL, url)
+
+    def get_fedoraforge_releases(self, url: str) -> list[str]:
+        """Retrieves a list of releases for the forge.fedoraproject.org project.
+
+        Args:
+            url: the canonical URL for the the forge.fedoraproject.org project
+        """
+        return self._get_forgejo_tags(FEDORAFORGE_RELEASES_URL, url)
+
+    def get_codeberg_tags(self, url: str) -> list[str]:
+        """Retrieves a list of tags for a Codeberg project.
+
+        Args:
+            url: the canonical URL for the Codeberg project
+        """
+        return self._get_forgejo_tags(CODEBERG_TAGS_URL, url)
+
+    def get_fedoraforge_tags(self, url: str) -> list[str]:
+        """Retrieves a list of tags for the forge.fedoraproject.org project.
+
+        Args:
+            url: the canonical URL for the the forge.fedoraproject.org project
+        """
+        return self._get_forgejo_tags(FEDORAFORGE_TAGS_URL, url)
 
     def _get_pagure_info(self, base_url_tmpl: str, url: str) -> Optional[ProjInfo]:
         """Retrieves interesting metadata about a Pagure project.

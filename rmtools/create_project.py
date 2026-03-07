@@ -309,6 +309,62 @@ class AddProject:
         project.ecosystem = project.url
         return self.create_project('pagure', None, prefix, prerelease, False, project)
 
+    def add_project_forgejo(self, project: ProjectData) -> Optional[ProjectData]:
+        logging.info('Found Forgejo URL')
+        canonurl = add_matching.canonicalize_url(project.source, strip_scheme=False)
+        srcurl = parse.urlparse(canonurl)
+        parts = srcurl.path.split('/')
+        if len(parts) < 3:
+            logging.warning('Bad Forgejo URL %s', project.source)
+            return None
+
+        owner, repo = parts[1:3]
+
+        if srcurl.netloc == 'codeberg.org':
+            releases = self.host.get_codeberg_releases(project.source)
+        elif srcurl.netloc == 'forge.fedoraproject.org':
+            releases = self.host.get_fedoraforge_releases(project.source)
+        else:
+            logging.error('Skipping %s due to unknown Forgejo host', project.source)
+            return None
+
+        use_release = True
+        if not releases:
+            use_release = False
+            logging.debug('Trying tags')
+            if srcurl.netloc == 'codeberg.org':
+                releases = self.host.get_codeberg_tags(project.source)
+            elif srcurl.netloc == 'forge.fedoraproject.org':
+                releases = self.host.get_fedoraforge_tags(project.source)
+
+        if not releases:
+            logging.warning('Skipping %s due to no tags', project.project)
+            return None
+
+        version_url = canonurl
+
+        # Strip a prerelease suffix, if any
+        prerelease = strip_prerelease_suffix_list(releases, self.suffixes)
+        if not prerelease:
+            prerelease = strip_prerelease_suffix(releases)
+
+        # Look for prefixes that need to be removed
+        prefixes = self.prefixes + [
+            project.project + '-v', repo + '-v', project.project + '-', repo + '-']
+        prefix = find_version_prefix(releases, prefixes)
+        if prefix is None:
+            logging.warning('Skipping %s due to questionable release tags', project.project)
+            logging.debug('Tags: %s', repr(releases))
+            return None
+
+        if any(YEAR_VER_RE.search(r.removeprefix(prefix)) for r in releases):
+            logging.warning('Skipping %s due to possible calendar release tags', project.project)
+            # TODO: set the calendar flag for these
+            return None
+
+        project.ecosystem = project.url
+        return self.create_project('Gitea', version_url, prefix, prerelease, use_release, project)
+
     def add_project_ecosystem(self, ecosystem: str, project: ProjectData) -> Optional[ProjectData]:
         """Add this project with the correct update parameters for a number of ecosystems."""
         logging.info('Found %s URL', ecosystem)
@@ -393,6 +449,9 @@ class AddProject:
         # We don't bother with src.fedoraproject.org because there are never any tags or releases
         if srcurl.netloc == 'pagure.io':
             return self.add_project_pagureio(project)
+
+        if srcurl.netloc in frozenset({'codeberg.org', 'forge.fedoraproject.org'}):
+            return self.add_project_forgejo(project)
 
         logging.warning('Unsupported URL %s for %s', project.source, project.project)
         return None
