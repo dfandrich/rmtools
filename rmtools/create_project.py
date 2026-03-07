@@ -264,6 +264,51 @@ class AddProject:
         project.ecosystem = project.url
         return self.create_project('Sourceforge', version_url, '', '', False, project)
 
+    def add_project_pagureio(self, project: ProjectData) -> Optional[ProjectData]:
+        logging.info('Found Pagure URL')
+        canon = add_matching.canonicalize_url(project.source, strip_scheme=False)
+        srcurl = parse.urlparse(canon)
+        parts = srcurl.path.split('/')
+        if len(parts) < 2 or len(parts) > 4:
+            # This shouldn't happen if we're given a canonical URL as required
+            logging.warning('Bad Pagure URL %s', project.source)
+            return None
+
+        fullrepo = '/'.join(parts[1:])
+        if project.project != fullrepo:
+            logging.warning('Using ecosystem name (%s) not the supplied project name (%s)',
+                            fullrepo, project.project)
+            project.project = fullrepo
+        repo = parts[-1]
+
+        tags = self.host.get_pagureio_tags(project.source)
+        if not tags:
+            logging.warning('Skipping %s due to no tags', project.project)
+            return None
+
+        # Strip a prerelease suffix, if any
+        # Try the user-supplied suffixes first
+        prerelease = strip_prerelease_suffix_list(tags, self.suffixes)
+        if not prerelease:
+            prerelease = strip_prerelease_suffix(tags)
+
+        # Look for prefixes that need to be removed
+        prefixes = self.prefixes + [
+            project.project + '-v', repo + '-v', project.project + '-', repo + '-']
+        prefix = find_version_prefix(tags, prefixes)
+        if prefix is None:
+            logging.warning('Skipping %s due to questionable release tags', project.project)
+            logging.debug('Tags: %s', repr(tags))
+            return None
+
+        if any(YEAR_VER_RE.search(r.removeprefix(prefix)) for r in tags):
+            logging.warning('Skipping %s due to possible calendar release tags', project.project)
+            # TODO: set the calendar flag for these
+            return None
+
+        project.ecosystem = project.url
+        return self.create_project('pagure', None, prefix, prerelease, False, project)
+
     def add_project_ecosystem(self, ecosystem: str, project: ProjectData) -> Optional[ProjectData]:
         """Add this project with the correct update parameters for a number of ecosystems."""
         logging.info('Found %s URL', ecosystem)
@@ -344,6 +389,10 @@ class AddProject:
 
         if srcurl.netloc == 'sourceforge.net':
             return self.add_project_sourceforge(project)
+
+        # We don't bother with src.fedoraproject.org because there are never any tags or releases
+        if srcurl.netloc == 'pagure.io':
+            return self.add_project_pagureio(project)
 
         logging.warning('Unsupported URL %s for %s', project.source, project.project)
         return None

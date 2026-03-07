@@ -382,6 +382,7 @@ These are the project hosts for which creation is supported:
 * metacpan.org
 * npmjs.com
 * npmjs.org
+* pagure.io
 * pypi.org
 * rubygems.org
 * sourceforge.net
