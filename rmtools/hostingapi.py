@@ -1290,7 +1290,7 @@ class HostingAPI:
                          url, e.response.status_code, e.response.reason)
             return None
         info = json.loads(resp.text)
-        urls = [info['homepage_url']]
+        urls = [info.get('homepage_url', '')]
 
         # Retrieve the timeline to get release dates
         resp = self.req.get(LAUNCHPAD_OP_URL.format(
