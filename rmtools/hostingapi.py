@@ -1065,6 +1065,14 @@ class HostingAPI:
                         # A release or a commit counts as project activity. Most other types can be
                         # created by users trying to wake a dead project. "blog" might be another
                         # we could look at, but code is king.
+                        # It seems like sf.net doesn't return very old activities (like >12 years)
+                        # so such old projects won't get a date returned.
+                        # TODO: Work around this by using the oldest one of the non-code activities
+                        # as last_modified. It's not accurate, but it puts an upper bound on
+                        # the last commit or release date that is likely to be very old already.
+                        # Only do this if there aren't very many activities returned, since if there
+                        # are, then it's possible recent code ones were pushed off the end by
+                        # even more recent other activities (like comments).
                         if 'release' in activity['tags'] or 'commit' in activity['tags']:
                             # Use the first matching activity found
                             last_modified = datetime.datetime.fromtimestamp(
