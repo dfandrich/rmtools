@@ -117,6 +117,10 @@ OPAM_BASE_URL = OPAM_API_URL + '/{package}/'
 READTHEDOCS_API_URL = 'https://app.readthedocs.org/api/v3/'
 READTHEDOCS_BASE_URL = READTHEDOCS_API_URL + '/projects/{project}/'
 
+GOOGLECODE_API_URL = 'https://storage.googleapis.com/storage/v1/b/google-code-archive/o/v2%2Fcode.google.com%2F'
+GOOGLECODE_BASE_URL = GOOGLECODE_API_URL + '{project}%2Fproject.json'
+GOOGLECODE_INFO_URL = GOOGLECODE_BASE_URL + '?alt=media&stripTrailingSlashes=false'
+
 # Characters that are safe in URLs without special handling
 SAFE_CHARS_RE = re.compile(r'^[-a-zA-Z0-9()._!^]*$')
 
@@ -1428,6 +1432,56 @@ class HostingAPI:
         urls = [url for url in urls if url]
         return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
+    def get_googlecode_info(self, url: str) -> Optional[ProjInfo]:
+        """Parse a Google Code archive page to extract useful info.
+
+        Args:
+            url: the canonical URL for the project
+        """
+        _, _, path, _, _ = parse.urlsplit(url)
+        parts = path.split('/')
+        if len(parts) < 3:
+            return None
+        project = parts[2]
+        if not project or unsafe_path(project):
+            return None
+
+        headers = {'Accept': JSON_DATA_TYPE,
+                   'User-Agent': netreq.USER_AGENT
+                   }
+        resp = self.req.get(GOOGLECODE_BASE_URL.format(project=project), headers=headers,
+                            timeout=netreq.TIMEOUT)
+        try:
+            resp.raise_for_status()
+        except netreq.HTTPError as e:
+            logging.info('Error retrieving data for %s (%s: %s)',
+                         url, e.response.status_code, e.response.reason)
+            return None
+        meta = json.loads(resp.text)
+
+        # This seems to be the time the project was archived, which isn't terribly useful but
+        # technically correct. It's also long ago now (April 2016) that the project will be
+        # considered stale, which is the goal of this data.
+        last_modified = parse_iso8601(meta['updated'])
+        # Google Code is entirely archived, but double check just in case it ever comes back from
+        # the dead
+        status = (ProjInfo.ProjStatus.INVALID if meta['bucket'] == 'google-code-archive'
+                  else ProjInfo.ProjStatus.UNKNOWN)
+
+        resp = self.req.get(GOOGLECODE_INFO_URL.format(project=project), headers=headers,
+                            timeout=netreq.TIMEOUT)
+        try:
+            resp.raise_for_status()
+        except netreq.HTTPError as e:
+            logging.info('Error retrieving data for %s (%s: %s)',
+                         url, e.response.status_code, e.response.reason)
+            return None
+        info = json.loads(resp.text)
+
+        urls = [info['movedTo']]
+        urls = [url for url in urls if url]
+        return ProjInfo(status=status, last_modified=last_modified, urls=urls)
+
     def _get_project_info(self, url: str) -> Optional[ProjInfo]:
         """Return basic information about a hosted project."""
         if not url:
@@ -1504,6 +1558,9 @@ class HostingAPI:
 
         if netloc.endswith('.readthedocs.org') or netloc.endswith('.readthedocs.io'):
             return self.get_readthedocs_info(url)
+
+        if netloc == 'code.google.com':
+            return self.get_googlecode_info(url)
 
         # TODO: add these sources:
         # https://hackage.haskell.org/ (home page, source code)

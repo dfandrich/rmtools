@@ -114,6 +114,12 @@ MAVEN_MATCH_RE = re.compile(r'^//repo1\.maven\.org/maven2/(.+)/([^/]+)(/)?$')
 # Match a crates.io crate download URL
 CRATESIODL_MATCH_RE = re.compile(r'^//crates\.io/api/v1/crates/([^/#?]+)')
 
+# Match a code.google.com project URL
+GOOGLECODE_MATCH_RE = re.compile(r'^//code\.google\.com/(?:archive/)?p/([^/#?]+)')
+
+# Match a googlecode.com project files URL
+GOOGLECODEFILES_MATCH_RE = re.compile(r'^//([^/.]+)\.googlecode\.com\b')
+
 # Match a download archive link that repeats the project name in the download URL
 DOWNLOAD_ARCHIVE_STRIP_RE = re.compile(r'^(//.*/([^/]{3,}))/([0-9.]+/)?\2-\d[\w.]*\.(tar|zip|lzh|rar|cab|tgz|tbz|txz|jar)(\.\w{1,5})?$')
 
@@ -226,6 +232,8 @@ def canonicalize_url(url: str, strip_scheme: bool = True) -> str:
         return scheme + f'//central.sonatype.com/artifact/{group}/{artifact}'
     if r := CRATESIODL_MATCH_RE.search(url):
         return scheme + f'//crates.io/crates/{r[1]}'
+    if (r := GOOGLECODE_MATCH_RE.search(url)) or (r := GOOGLECODEFILES_MATCH_RE.search(url)):
+        return scheme + f'//code.google.com/p/{r[1]}'
 
     # This is a generic match that should be last
     if r := DOWNLOAD_ARCHIVE_STRIP_RE.search(url):

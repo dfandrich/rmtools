@@ -153,6 +153,12 @@ class TestCanonicalize(unittest.TestCase):
              '//example.com/projects/xyzzy-1.2.tar.gz'),
             ('ftp://example.com/pub/xyzzy/1.2/xyzzy-1.2.tar.gz',
              '//example.com/pub/xyzzy'),
+            ('https://project.googlecode.com/files/project_004-091218.tar.gz',
+             '//code.google.com/p/project'),
+            ('https://code.google.com/p/project/issues',
+             '//code.google.com/p/project'),
+            ('https://code.google.com/archive/p/project/downloads',
+             '//code.google.com/p/project'),
             ('', ''),
         ]:
             with self.subTest(url=url, canon=canon):
