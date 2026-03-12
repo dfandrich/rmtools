@@ -31,7 +31,7 @@ SF_SHORT_HOMEPAGE_MATCH_RE = re.compile(r'^//([^/.]+)\.sf\.net(/.*)?$')
 SF_MATCH_RE = re.compile(r'^(//sourceforge\.net/projects/[^/#?]+)')
 
 # Match a github URL
-GH_MATCH_RE = re.compile(r'^(//github\.com/[^/#?]+/[^/#?]+)')
+GH_MATCH_RE = re.compile(r'^//(?:codeload\.)?github\.com/([^/#?]+/[^/#?]+)')
 
 # Match a github.io home page URL
 GIO_HOMEPAGE_MATCH_RE = re.compile(r'^//([^/.]+)\.github\.io/([^/#?]+)')
@@ -183,7 +183,7 @@ def canonicalize_url(url: str, strip_scheme: bool = True) -> str:
     if r := SF_MATCH_RE.search(url):
         return scheme + r.group(1)
     if r := GH_MATCH_RE.search(url):
-        return scheme + r.group(1)
+        return scheme + f'//github.com/{r[1]}'
     if r := GIO_HOMEPAGE_MATCH_RE.search(url):
         url = f'//github.com/{r[1]}/{r[2]}'
         if url.endswith('.html'):

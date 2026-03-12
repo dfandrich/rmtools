@@ -61,6 +61,7 @@ class TestCanonicalize(unittest.TestCase):
             ('https://github.com/proj/user/tarball/master', '//github.com/proj/user'),
             ('https://github.com/proj-only/', '//github.com/proj-only'),
             ('https://github.com/proj/user#readme', '//github.com/proj/user'),
+            ('https://codeload.github.com/proj/user/tar.gz/abcde', '//github.com/proj/user'),
             ('https://codeberg.org/proj/user/something/more', '//codeberg.org/proj/user'),
             ('https://forge.fedoraproject.org/quality/python-wikitcms/src/branch/main/src',
              '//forge.fedoraproject.org/quality/python-wikitcms'),
