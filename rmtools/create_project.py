@@ -123,12 +123,13 @@ def find_version_prefix(releases: list[str], extra: list[str]) -> Optional[str]:
 class AddProject:
     """Add a project to Anitya, if known."""
 
-    def __init__(self, rm: rmapi.RMApi, host: hostingapi.HostingAPI,
+    def __init__(self, rm: rmapi.RMApi, host: hostingapi.HostingAPI, skip_tag_check: bool,
                  prefixes: Optional[list[str]] = None, suffixes: Optional[list[str]] = None):
         self.rm = rm
         self.host = host
         self.prefixes = prefixes if prefixes else []
         self.suffixes = suffixes if suffixes else []
+        self.skip_tag_check = skip_tag_check
 
     def create_project(self, backend: str, version_url: Optional[str], prefix: str, prerelease: str,
                        release: bool, project: ProjectData):
@@ -175,12 +176,18 @@ class AddProject:
         if prefix is None:
             logging.warning('Skipping %s due to questionable release tags', project.project)
             logging.debug('Tags: %s', repr(releases))
-            return None
+            if not self.skip_tag_check:
+                return None
+            logging.warning('Continuing despite bad release tags, as requested')
+            # Use the provided prefixes unconditionally
+            prefix = ';'.join(self.prefixes)
 
         if any(YEAR_VER_RE.search(r.removeprefix(prefix)) for r in releases):
             logging.warning('Skipping %s due to possible calendar release tags', project.project)
             # TODO: set the calendar flag for these
-            return None
+            if not self.skip_tag_check:
+                return None
+            logging.warning('Continuing despite bad release tags, as requested')
 
         project.ecosystem = project.url
         return self.create_project('GitHub', version_url, prefix, prerelease, use_release, project)
@@ -233,12 +240,18 @@ class AddProject:
         if prefix is None:
             logging.warning('Skipping %s due to questionable release tags', project.project)
             logging.debug('Tags: %s', repr(releases))
-            return None
+            if not self.skip_tag_check:
+                return None
+            logging.warning('Continuing despite bad release tags, as requested')
+            # Use the provided prefixes unconditionally
+            prefix = ';'.join(self.prefixes)
 
         if any(YEAR_VER_RE.search(r.removeprefix(prefix)) for r in releases):
             logging.warning('Skipping %s due to possible calendar release tags', project.project)
             # TODO: set the calendar flag for these
-            return None
+            if not self.skip_tag_check:
+                return None
+            logging.warning('Continuing despite bad release tags, as requested')
 
         project.ecosystem = project.url
         return self.create_project('GitLab', version_url, prefix, prerelease, use_release, project)
@@ -299,12 +312,18 @@ class AddProject:
         if prefix is None:
             logging.warning('Skipping %s due to questionable release tags', project.project)
             logging.debug('Tags: %s', repr(tags))
-            return None
+            if not self.skip_tag_check:
+                return None
+            logging.warning('Continuing despite bad release tags, as requested')
+            # Use the provided prefixes unconditionally
+            prefix = ';'.join(self.prefixes)
 
         if any(YEAR_VER_RE.search(r.removeprefix(prefix)) for r in tags):
             logging.warning('Skipping %s due to possible calendar release tags', project.project)
             # TODO: set the calendar flag for these
-            return None
+            if not self.skip_tag_check:
+                return None
+            logging.warning('Continuing despite bad release tags, as requested')
 
         project.ecosystem = project.url
         return self.create_project('pagure', None, prefix, prerelease, False, project)
@@ -355,12 +374,18 @@ class AddProject:
         if prefix is None:
             logging.warning('Skipping %s due to questionable release tags', project.project)
             logging.debug('Tags: %s', repr(releases))
-            return None
+            if not self.skip_tag_check:
+                return None
+            logging.warning('Continuing despite bad release tags, as requested')
+            # Use the provided prefixes unconditionally
+            prefix = ';'.join(self.prefixes)
 
         if any(YEAR_VER_RE.search(r.removeprefix(prefix)) for r in releases):
             logging.warning('Skipping %s due to possible calendar release tags', project.project)
             # TODO: set the calendar flag for these
-            return None
+            if not self.skip_tag_check:
+                return None
+            logging.warning('Continuing despite bad release tags, as requested')
 
         project.ecosystem = project.url
         return self.create_project('Gitea', version_url, prefix, prerelease, use_release, project)
@@ -524,6 +549,11 @@ def main():
         default=[],
         help='Additional prerelease version suffix to try before standard ones like '
              '"beta" and "-rc1"')
+    parser.add_argument(
+        '--skip-tag-check',
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Create the project even if the tags don't seem to make sense")
     args = parser.parse_args()
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO if args.verbose else logging.WARNING,
@@ -543,7 +573,7 @@ def main():
 
     host = hostingapi.HostingAPI(gh_token)
     ex = external.ExternalAPI()
-    ap = AddProject(rm, host, args.version_prefix, args.prerelease_suffix)
+    ap = AddProject(rm, host, args.skip_tag_check, args.version_prefix, args.prerelease_suffix)
 
     for l in sys.stdin:
         l = l.strip()
