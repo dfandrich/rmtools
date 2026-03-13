@@ -136,7 +136,7 @@ mass creating projects.
 If you enable verbose or debug logging for `create-project`, you can go
 through the failures and try creating them again with adjusted options.
 Failures due to questionable tags can often be fixed with appropriate
-`--version-prefix` and `--prerelease-suffix` options customized for each
+`--version-prefix` and `--prerelease-filter` options customized for each
 new project. If you can verify another way that the URLs are correct, the
 `--no-external-check` will skip network or server problems.
 
@@ -340,11 +340,19 @@ There must be a means available to extract the version number from the tag used
 for the release, but if the common heuristics aren't sufficient (like stripping
 a leading "ver-") then the `--version-prefix` option can be given (one or more
 times) to provide additional alternate prefixes to try. Similarly, the
-`--prerelease-suffix` option can be used to specify suffixes found on
+`--prerelease-filter` option can be used to specify identifiers found on
 prerelease versions when the common heuristics aren't sufficient (like "rc"
-and "beta"). If at least one of the suffixes found using this option is found,
-then the entire set of these suffixes (and only those) is configured in the
-project to match future releases.
+and "beta"). If at least one version is found using one of these filters,
+then the entire set of these filters provided (and only those) is configured in
+the project to match future releases.
+
+If, after stripping prefixes and suffixes, the tags end up not looking entirely
+like version numbers, creation of the project will be skipped. If you know that
+the resulting versions are correct, you can use the `--skip-tag-check` option
+to create the project anyway. If the project would have been skipped without
+this option, then the provided `--version-prefix` and `--prerelease-filter`
+values will be used verbatim, unless the problem clearly wouldn't be helped by
+using them.
 
 Some ecosystems require that the project name match the ecosystem name, so in
 those cases the supplied project name is ignored.

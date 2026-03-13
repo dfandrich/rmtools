@@ -118,25 +118,30 @@ class TestStripPrereleaseSuffix(unittest.TestCase):
         self.assertEqual('', suffix)
 
 
-class TestStripPrereleaseSuffixList(unittest.TestCase):
-    """Test strip_prerelease_suffix_list."""
+class TestStripPrereleaseFilterList(unittest.TestCase):
+    """Test strip_prerelease_filter_list."""
 
-    def test_strip_prerelease_suffix_list(self):
+    def test_strip_prerelease_filter_list(self):
         rel = ['v-1.2.3', 'v-99.rc1', 'v-0000.1rc', 'v-123.45_rc67']
-        suffix = create_project.strip_prerelease_suffix_list(rel, ['.rc1', '.rc2'])
-        self.assertEqual('.rc1;.rc2', suffix)
-        self.assertEqual(['v-1.2.3', 'v-99', 'v-0000.1rc', 'v-123.45_rc67'], rel)
+        filters = create_project.strip_prerelease_filter_list(rel, ['rc'])
+        self.assertEqual('rc', filters)
+        self.assertEqual(['v-1.2.3'], rel)
 
-    def test_strip_prerelease_suffix_list_empty(self):
+        rel = ['1.2', '1.2alpha', '1.2beta', '1.2gamma']
+        filters = create_project.strip_prerelease_filter_list(rel, ['alpha', 'beta', 'gamma'])
+        self.assertEqual('alpha;beta;gamma', filters)
+        self.assertEqual(['1.2'], rel)
+
+    def test_strip_prerelease_filter_list_empty(self):
         rel = ['v-1.2.3', 'v-99.rc1', 'v-0000.1rc', 'v-123.45_rc67']
-        suffix = create_project.strip_prerelease_suffix_list(rel, [])
-        self.assertEqual('', suffix)
+        filters = create_project.strip_prerelease_filter_list(rel, [])
+        self.assertEqual('', filters)
         self.assertEqual(['v-1.2.3', 'v-99.rc1', 'v-0000.1rc', 'v-123.45_rc67'], rel)
 
-    def test_strip_prerelease_suffix_list_none(self):
+    def test_strip_prerelease_filter_list_none(self):
         rel = ['v-1.2.3', 'v-99.rc1', 'v-0000.1rc', 'v-123.45_rc67']
-        suffix = create_project.strip_prerelease_suffix_list(rel, ['alpha', 'beta'])
-        self.assertEqual('', suffix)
+        filters = create_project.strip_prerelease_filter_list(rel, ['alpha', 'beta'])
+        self.assertEqual('', filters)
         self.assertEqual(['v-1.2.3', 'v-99.rc1', 'v-0000.1rc', 'v-123.45_rc67'], rel)
 
 

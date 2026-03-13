@@ -61,22 +61,26 @@ def strip_project_prefix(project_name: str, strip_prefix: list[str]) -> str:
     return project_name
 
 
-def strip_prerelease_suffix_list(releases: list[str], suffixes: list[str]) -> str:
-    """Find and remove prerelease suffixes from the list of release numbers.
+def strip_prerelease_filter_list(releases: list[str], filters: list[str]) -> str:
+    """Find and remove prerelease filters from the list of release numbers.
 
-    If at least one suffix is found, the suffix list string is returned and the suffixes are
-    removed from releases.
+    If at least one filter is found, the filter list string for all filters is
+    returned and any matching releases are removed.
+    This function matches less carefully than strip_prerelease_suffix_list()
+    and could therefore end up matching things other than a suffix.
     """
-    new_releases = releases.copy()
-    for suffix in suffixes:
-        new_releases = [rel.removesuffix(suffix) for rel in new_releases]
+    new_releases = [rel for rel in releases if not any(filt in rel for filt in filters)]
     if releases == new_releases:
-        # No suffixes were removed
+        # No matching releases were removed
         return ''
     # Mutate original list
-    for i in range(len(releases)):
+    for i in range(len(new_releases)):
         releases[i] = new_releases[i]
-    return ';'.join(suffixes)
+    first_to_del = i
+    # Delete remaining items if the new list is shorter
+    for i in range(first_to_del + len(releases) - len(new_releases), first_to_del, -1):
+        del releases[i]
+    return ';'.join(filters)
 
 
 def strip_prerelease_suffix(releases: list[str]) -> str:
@@ -124,11 +128,11 @@ class AddProject:
     """Add a project to Anitya, if known."""
 
     def __init__(self, rm: rmapi.RMApi, host: hostingapi.HostingAPI, skip_tag_check: bool,
-                 prefixes: Optional[list[str]] = None, suffixes: Optional[list[str]] = None):
+                 prefixes: Optional[list[str]] = None, prerelfilt: Optional[list[str]] = None):
         self.rm = rm
         self.host = host
         self.prefixes = prefixes if prefixes else []
-        self.suffixes = suffixes if suffixes else []
+        self.prerelfilt = prerelfilt if prerelfilt else []
         self.skip_tag_check = skip_tag_check
 
     def create_project(self, backend: str, version_url: Optional[str], prefix: str, prerelease: str,
@@ -162,10 +166,11 @@ class AddProject:
             if not releases:
                 logging.warning('Skipping %s due to no tags', project.project)
                 return None
+        orig_releases = releases.copy()
 
         # Strip a prerelease suffix, if any
-        # Try the user-supplied suffixes first
-        prerelease = strip_prerelease_suffix_list(releases, self.suffixes)
+        # Try the user-supplied filters first
+        prerelease = strip_prerelease_filter_list(releases, self.prerelfilt)
         if not prerelease:
             prerelease = strip_prerelease_suffix(releases)
 
@@ -175,12 +180,17 @@ class AddProject:
         prefix = find_version_prefix(releases, prefixes)
         if prefix is None:
             logging.warning('Skipping %s due to questionable release tags', project.project)
-            logging.debug('Tags: %s', repr(releases))
+            logging.debug('Remaining Tags: %s', repr(releases))
+            logging.debug('Original tags: %s', repr(orig_releases))
+            logging.debug('Using prerelease filters %s', prerelease)
             if not self.skip_tag_check:
                 return None
             logging.warning('Continuing despite bad release tags, as requested')
             # Use the provided prefixes unconditionally
             prefix = ';'.join(self.prefixes)
+            # Use the provided prerelease filters if given
+            if self.prerelfilt:
+                prerelease = ';'.join(self.prerelfilt)
 
         if any(YEAR_VER_RE.search(r.removeprefix(prefix)) for r in releases):
             logging.warning('Skipping %s due to possible calendar release tags', project.project)
@@ -227,9 +237,11 @@ class AddProject:
         if not releases:
             logging.warning('Skipping %s due to no tags', project.project)
             return None
+        orig_releases = releases.copy()
 
         # Strip a prerelease suffix, if any
-        prerelease = strip_prerelease_suffix_list(releases, self.suffixes)
+        # Try the user-supplied filters first
+        prerelease = strip_prerelease_filter_list(releases, self.prerelfilt)
         if not prerelease:
             prerelease = strip_prerelease_suffix(releases)
 
@@ -239,12 +251,17 @@ class AddProject:
         prefix = find_version_prefix(releases, prefixes)
         if prefix is None:
             logging.warning('Skipping %s due to questionable release tags', project.project)
-            logging.debug('Tags: %s', repr(releases))
+            logging.debug('Remaining Tags: %s', repr(releases))
+            logging.debug('Original tags: %s', repr(orig_releases))
+            logging.debug('Using prerelease filters %s', prerelease)
             if not self.skip_tag_check:
                 return None
             logging.warning('Continuing despite bad release tags, as requested')
             # Use the provided prefixes unconditionally
             prefix = ';'.join(self.prefixes)
+            # Use the provided prerelease filters if no others were found
+            if self.prerelfilt:
+                prerelease = ';'.join(self.prerelfilt)
 
         if any(YEAR_VER_RE.search(r.removeprefix(prefix)) for r in releases):
             logging.warning('Skipping %s due to possible calendar release tags', project.project)
@@ -298,10 +315,11 @@ class AddProject:
         if not tags:
             logging.warning('Skipping %s due to no tags', project.project)
             return None
+        orig_tags = tags.copy()
 
         # Strip a prerelease suffix, if any
-        # Try the user-supplied suffixes first
-        prerelease = strip_prerelease_suffix_list(tags, self.suffixes)
+        # Try the user-supplied filters first
+        prerelease = strip_prerelease_filter_list(tags, self.prerelfilt)
         if not prerelease:
             prerelease = strip_prerelease_suffix(tags)
 
@@ -311,12 +329,17 @@ class AddProject:
         prefix = find_version_prefix(tags, prefixes)
         if prefix is None:
             logging.warning('Skipping %s due to questionable release tags', project.project)
-            logging.debug('Tags: %s', repr(tags))
+            logging.debug('Remaining Tags: %s', repr(tags))
+            logging.debug('Original tags: %s', repr(orig_tags))
+            logging.debug('Using prerelease filters %s', prerelease)
             if not self.skip_tag_check:
                 return None
             logging.warning('Continuing despite bad release tags, as requested')
             # Use the provided prefixes unconditionally
             prefix = ';'.join(self.prefixes)
+            # Use the provided prerelease filters if given
+            if self.prerelfilt:
+                prerelease = ';'.join(self.prerelfilt)
 
         if any(YEAR_VER_RE.search(r.removeprefix(prefix)) for r in tags):
             logging.warning('Skipping %s due to possible calendar release tags', project.project)
@@ -355,15 +378,16 @@ class AddProject:
                 releases = self.host.get_codeberg_tags(project.source)
             elif srcurl.netloc == 'forge.fedoraproject.org':
                 releases = self.host.get_fedoraforge_tags(project.source)
-
         if not releases:
             logging.warning('Skipping %s due to no tags', project.project)
             return None
+        orig_releases = releases.copy()
 
         version_url = canonurl
 
         # Strip a prerelease suffix, if any
-        prerelease = strip_prerelease_suffix_list(releases, self.suffixes)
+        # Try the user-supplied filters first
+        prerelease = strip_prerelease_filter_list(releases, self.prerelfilt)
         if not prerelease:
             prerelease = strip_prerelease_suffix(releases)
 
@@ -373,12 +397,17 @@ class AddProject:
         prefix = find_version_prefix(releases, prefixes)
         if prefix is None:
             logging.warning('Skipping %s due to questionable release tags', project.project)
-            logging.debug('Tags: %s', repr(releases))
+            logging.debug('Remaining Tags: %s', repr(releases))
+            logging.debug('Original tags: %s', repr(orig_releases))
+            logging.debug('Using prerelease filters %s', prerelease)
             if not self.skip_tag_check:
                 return None
             logging.warning('Continuing despite bad release tags, as requested')
             # Use the provided prefixes unconditionally
             prefix = ';'.join(self.prefixes)
+            # Use the provided prerelease filters if given
+            if self.prerelfilt:
+                prerelease = ';'.join(self.prerelfilt)
 
         if any(YEAR_VER_RE.search(r.removeprefix(prefix)) for r in releases):
             logging.warning('Skipping %s due to possible calendar release tags', project.project)
@@ -543,12 +572,12 @@ def main():
         default=[],
         help='Additional version prefix to try before standard ones like "v" and "ver-"')
     parser.add_argument(
-        '--prerelease-suffix',
+        '--prerelease-filter',
         type=str,
         action='append',
         default=[],
-        help='Additional prerelease version suffix to try before standard ones like '
-             '"beta" and "-rc1"')
+        help='Additional prerelease identifiers to try before standard ones like '
+             '"beta" and "rc"')
     parser.add_argument(
         '--skip-tag-check',
         action=argparse.BooleanOptionalAction,
@@ -573,7 +602,8 @@ def main():
 
     host = hostingapi.HostingAPI(gh_token)
     ex = external.ExternalAPI()
-    ap = AddProject(rm, host, args.skip_tag_check, args.version_prefix, args.prerelease_suffix)
+    ap = AddProject(rm, host, args.skip_tag_check, args.version_prefix, args.prerelease_filter,
+                    args.version_filter)
 
     for l in sys.stdin:
         l = l.strip()
