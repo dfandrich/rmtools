@@ -1053,7 +1053,9 @@ class HostingAPI:
             return None
         info = json.loads(resp.text)
 
-        last_modified = None
+        # Start with the project creation date if no other activity can be found
+        last_modified = datetime.datetime.strptime(info['creation_date'] + 'Z', '%Y-%m-%d%z')
+        # TODO: we could probably unconditionally load the /activity endpoint
         for tool in info['tools']:
             if tool['name'] == 'activity':
                 resp = self.req.get(SF_ACTIVITY_URL.format(project=project), headers=headers,
@@ -1065,29 +1067,52 @@ class HostingAPI:
                                  url, e.response.status_code, e.response.reason)
                 else:
                     activities = json.loads(resp.text)
+                    last_activity = None
                     for activity in activities['timeline']:
                         # A release or a commit counts as project activity. Most other types can be
                         # created by users trying to wake a dead project. "blog" might be another
                         # we could look at, but code is king.
                         # It seems like sf.net doesn't return very old activities (like >12 years)
-                        # so such old projects won't get a date returned.
-                        # TODO: Work around this by using the oldest one of the non-code activities
-                        # as last_modified. It's not accurate, but it puts an upper bound on
-                        # the last commit or release date that is likely to be very old already.
-                        # Only do this if there aren't very many activities returned, since if there
-                        # are, then it's possible recent code ones were pushed off the end by
-                        # even more recent other activities (like comments).
+                        # so such old projects won't find a date here.
                         if 'release' in activity['tags'] or 'commit' in activity['tags']:
                             # Use the first matching activity found
                             last_modified = datetime.datetime.fromtimestamp(
                                 activity['published'] / 1000, tz=datetime.timezone.utc)
                             break
-                    # It looks like activity logs only go back so far, so a lack of activity
-                    # could mean no activity or very old activity. Either way, it's a bad sign
-                    # and so perhaps should be surfaced.
 
-        # TODO: find a better status
-        status = ProjInfo.ProjStatus.UNKNOWN
+                        # Keep track of the most recent activity of any kind
+                        stamp = datetime.datetime.fromtimestamp(
+                            activity['published'] / 1000, tz=datetime.timezone.utc)
+                        if not last_activity or last_activity < stamp:
+                            last_activity = stamp
+
+                    else:
+                        # No commit or release was found, likely because the last one was very
+                        # long ago and SourceForge has forgotten about it.  Work around this by
+                        # using the oldest one of the non-code activities as last_modified. It's
+                        # not quite what we want, but it at least puts an upper bound on the last
+                        # date, and any activity at all shows that the project isn't completely
+                        # dead.
+                        if last_activity:
+                            last_modified = last_activity
+
+        devstatuses = info['categories']['developmentstatus']
+        # All statuses must be inactive for the project to be inactive
+        devinactive = devstatuses and all(s['shortname'] == '7-inactive' for s in devstatuses)
+        if info['status'] in frozenset({'abandoned', 'moved'}) or devinactive:
+            # Project is self-reported to be inactive or moved
+            status = ProjInfo.ProjStatus.INVALID
+        elif devstatuses:
+            # Both self-reported project and development status must be valid to return valid
+            status = ProjInfo.ProjStatus.VALID
+        else:
+            # With only the default self-reported project status and no development status, we don't
+            # put much trust in it since the case of a user abandoning a project without reporting
+            # it as such is too common. We assume the maintainer is more on-the-ball if both
+            # statuses are set and trust them in that case, even if technically, the project is
+            # indeed valid with just one.
+            # TODO: reconsider using this heuristic instead of returning VALID
+            status = ProjInfo.ProjStatus.UNKNOWN
 
         # Could pull out sf.net-hosted CVS, SVN or GIT links, but that probably wouldn't help much
         # and we can't tell if they're active or not.
