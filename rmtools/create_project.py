@@ -61,6 +61,14 @@ def strip_project_prefix(project_name: str, strip_prefix: list[str]) -> str:
     return project_name
 
 
+def filter_release_list(releases: list[str], filters: list[str]) -> list[str]:
+    """Exclude versions with a filter identifier.
+
+    A version with any of these strings is removed.
+    """
+    return [rel for rel in releases if not any(filt in rel for filt in filters)]
+
+
 def strip_prerelease_filter_list(releases: list[str], filters: list[str]) -> str:
     """Find and remove prerelease filters from the list of release numbers.
 
@@ -128,20 +136,23 @@ class AddProject:
     """Add a project to Anitya, if known."""
 
     def __init__(self, rm: rmapi.RMApi, host: hostingapi.HostingAPI, skip_tag_check: bool,
-                 prefixes: Optional[list[str]] = None, prerelfilt: Optional[list[str]] = None):
+                 prefixes: Optional[list[str]] = None, prerelfilt: Optional[list[str]] = None,
+                 versionfilt: Optional[list[str]] = None):
         self.rm = rm
         self.host = host
         self.prefixes = prefixes if prefixes else []
         self.prerelfilt = prerelfilt if prerelfilt else []
+        self.versionfilt = versionfilt if versionfilt else []
+        self.versionfiltstr = ';'.join(self.versionfilt)
         self.skip_tag_check = skip_tag_check
 
     def create_project(self, backend: str, version_url: Optional[str], prefix: str, prerelease: str,
-                       release: bool, project: ProjectData):
+                       versionfilt: str, release: bool, project: ProjectData):
         """Create a new project on Anitya."""
-        logging.debug('Creating %s %s %s %s %s %s %s %s', project.project, project.package,
-                      project.url, version_url, backend, prefix, prerelease, release)
+        logging.debug('Creating %s %s %s %s %s %s %s %s %s', project.project, project.package,
+                      project.url, version_url, backend, prefix, prerelease, versionfilt, release)
         self.rm.create_new_project(project.project, project.url, backend, version_url, prefix,
-                                   prerelease)
+                                   prerelease, versionfilt)
         # Must start a scan as a separate operation since there is no other way to set the
         # "release" flag
         self.rm.scan_project_versions(project.project, project.url, release)
@@ -167,6 +178,9 @@ class AddProject:
                 logging.warning('Skipping %s due to no tags', project.project)
                 return None
         orig_releases = releases.copy()
+
+        # Filter out unwanted versions
+        releases = filter_release_list(releases, self.versionfilt)
 
         # Strip a prerelease suffix, if any
         # Try the user-supplied filters first
@@ -200,7 +214,8 @@ class AddProject:
             logging.warning('Continuing despite bad release tags, as requested')
 
         project.ecosystem = project.url
-        return self.create_project('GitHub', version_url, prefix, prerelease, use_release, project)
+        return self.create_project('GitHub', version_url, prefix, prerelease, self.versionfiltstr,
+                                   use_release, project)
 
     def add_project_gitlab_com(self, project: ProjectData) -> Optional[ProjectData]:
         logging.info('Found GitLab.com URL')
@@ -239,6 +254,9 @@ class AddProject:
             return None
         orig_releases = releases.copy()
 
+        # Filter out unwanted versions
+        releases = filter_release_list(releases, self.versionfilt)
+
         # Strip a prerelease suffix, if any
         # Try the user-supplied filters first
         prerelease = strip_prerelease_filter_list(releases, self.prerelfilt)
@@ -271,7 +289,8 @@ class AddProject:
             logging.warning('Continuing despite bad release tags, as requested')
 
         project.ecosystem = project.url
-        return self.create_project('GitLab', version_url, prefix, prerelease, use_release, project)
+        return self.create_project('GitLab', version_url, prefix, prerelease, self.versionfiltstr,
+                                   use_release, project)
 
     def add_project_sourceforge(self, project: ProjectData) -> Optional[ProjectData]:
         logging.info('Found Sourceforge URL')
@@ -292,7 +311,8 @@ class AddProject:
         # to at least verify that it will return something.
 
         project.ecosystem = project.url
-        return self.create_project('Sourceforge', version_url, '', '', False, project)
+        return self.create_project('Sourceforge', version_url, '', '', self.versionfiltstr,
+                                   False, project)
 
     def add_project_pagureio(self, project: ProjectData) -> Optional[ProjectData]:
         logging.info('Found Pagure URL')
@@ -316,6 +336,9 @@ class AddProject:
             logging.warning('Skipping %s due to no tags', project.project)
             return None
         orig_tags = tags.copy()
+
+        # Filter out unwanted versions
+        tags = filter_release_list(tags, self.versionfilt)
 
         # Strip a prerelease suffix, if any
         # Try the user-supplied filters first
@@ -349,7 +372,8 @@ class AddProject:
             logging.warning('Continuing despite bad release tags, as requested')
 
         project.ecosystem = project.url
-        return self.create_project('pagure', None, prefix, prerelease, False, project)
+        return self.create_project('pagure', None, prefix, prerelease, self.versionfiltstr,
+                                   False, project)
 
     def add_project_forgejo(self, project: ProjectData) -> Optional[ProjectData]:
         logging.info('Found Forgejo URL')
@@ -385,6 +409,9 @@ class AddProject:
 
         version_url = canonurl
 
+        # Filter out unwanted versions
+        releases = filter_release_list(releases, self.versionfilt)
+
         # Strip a prerelease suffix, if any
         # Try the user-supplied filters first
         prerelease = strip_prerelease_filter_list(releases, self.prerelfilt)
@@ -417,7 +444,8 @@ class AddProject:
             logging.warning('Continuing despite bad release tags, as requested')
 
         project.ecosystem = project.url
-        return self.create_project('Gitea', version_url, prefix, prerelease, use_release, project)
+        return self.create_project('Gitea', version_url, prefix, prerelease, self.versionfiltstr,
+                                   use_release, project)
 
     def add_project_ecosystem(self, ecosystem: str, project: ProjectData) -> Optional[ProjectData]:
         """Add this project with the correct update parameters for a number of ecosystems."""
@@ -432,7 +460,7 @@ class AddProject:
                             ecosystem, name, project.project)
             project.project = name
 
-        self.create_project(ecosystem, '', '', '', False, project)
+        self.create_project(ecosystem, '', '', '', self.versionfiltstr, False, project)
         return project
 
     def add_project_pypi(self, project: ProjectData) -> Optional[ProjectData]:
@@ -463,7 +491,7 @@ class AddProject:
                             name, project.project)
             project.project = name
 
-        return self.create_project('CPAN (perl)', None, '', '', False, project)
+        return self.create_project('CPAN (perl)', None, '', '', self.versionfiltstr, False, project)
 
     def add_project(self, project: ProjectData) -> Optional[ProjectData]:
         """Add a project to Anitya, if known.
@@ -578,6 +606,12 @@ def main():
         default=[],
         help='Additional prerelease identifiers to try before standard ones like '
              '"beta" and "rc"')
+    parser.add_argument(
+        '--version-filter',
+        type=str,
+        action='append',
+        default=[],
+        help='Filter identifiers of versions to ignore')
     parser.add_argument(
         '--skip-tag-check',
         action=argparse.BooleanOptionalAction,

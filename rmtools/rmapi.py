@@ -130,7 +130,8 @@ class RMApi:
         resp.raise_for_status()
 
     def create_new_project(self, project_name: str, url: str, backend: str,
-                           version_url: Optional[str], version_prefix: str, prerelease: str):
+                           version_url: Optional[str], version_prefix: str, prerelease: str,
+                           versionfilt: str):
         """Creates a new package for a given project."""
         if self.dry_run:
             logging.info('Skipping create_new_project in dry run mode')
@@ -145,6 +146,7 @@ class RMApi:
             'version_scheme': 'RPM',
             'version_prefix': version_prefix if version_prefix else None,
             'pre_release_filter': prerelease if prerelease else None,
+            'version_filter': versionfilt if versionfilt else None,
         }
         resp = self.req.post(BASE_URL + 'projects/', headers=self.headers | headers,
                              data=json.dumps(data), timeout=netreq.TIMEOUT)

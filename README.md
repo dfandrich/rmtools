@@ -346,6 +346,11 @@ and "beta"). If at least one version is found using one of these filters,
 then the entire set of these filters provided (and only those) is configured in
 the project to match future releases.
 
+Some version tags should be completely ignored, such as for continuous
+integration builds or unreleased snapshots. Use the `--version-filter` option
+to specify one or more strings that match these, which will be added
+unconditionally to the created project.
+
 If, after stripping prefixes and suffixes, the tags end up not looking entirely
 like version numbers, creation of the project will be skipped. If you know that
 the resulting versions are correct, you can use the `--skip-tag-check` option

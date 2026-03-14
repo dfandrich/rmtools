@@ -88,6 +88,37 @@ class TestRegexes(unittest.TestCase):
                 self.assertFalse(create_project.RC_SUFF_RE.search(ver))
 
 
+class TestFilterReleaseList(unittest.TestCase):
+    """Test filter_release_list."""
+
+    def test_filter_release_list(self):
+        rel = ['v-1.2.3', 'v-99.rc1', 'v-0000.1rc', 'v-123.45_rc67']
+        filtered = create_project.filter_release_list(rel, ['rc'])
+        self.assertEqual(['v-1.2.3'], filtered)
+
+        rel = ['1.2', '1.2alpha', '1.2beta', '1.2gamma']
+        filtered = create_project.filter_release_list(rel, ['alpha', 'beta', 'gamma'])
+        self.assertEqual(['1.2'], filtered)
+
+        rel = ['1.2alpha', '1.2beta', '1.2gamma']
+        filtered = create_project.filter_release_list(rel, ['alpha', 'beta', 'gamma'])
+        self.assertEqual([], filtered)
+
+        rel = ['alpha-1', 'beta-2', 'gamma-3', 'delta-4']
+        filtered = create_project.filter_release_list(rel, ['e'])
+        self.assertEqual(['alpha-1', 'gamma-3'], filtered)
+
+    def test_filter_release_list_empty(self):
+        rel = ['v-1.2.3', 'v-99.rc1', 'v-0000.1rc', 'v-123.45_rc67']
+        filtered = create_project.filter_release_list(rel, [])
+        self.assertEqual(['v-1.2.3', 'v-99.rc1', 'v-0000.1rc', 'v-123.45_rc67'], filtered)
+
+    def test_filter_release_list_none(self):
+        rel = ['v-1.2.3', 'v-99.rc1', 'v-0000.1rc', 'v-123.45_rc67']
+        filtered = create_project.filter_release_list(rel, ['alpha', 'beta'])
+        self.assertEqual(['v-1.2.3', 'v-99.rc1', 'v-0000.1rc', 'v-123.45_rc67'], filtered)
+
+
 class TestStripPrereleaseSuffix(unittest.TestCase):
     """Test strip_prerelease_suffix."""
 
