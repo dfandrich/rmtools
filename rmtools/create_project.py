@@ -14,12 +14,7 @@ from dataclasses import dataclass
 from typing import Optional
 from urllib import parse
 
-from rmtools import add_matching
-from rmtools import argparsing
-from rmtools import external
-from rmtools import find_project
-from rmtools import hostingapi
-from rmtools import rmapi
+from rmtools import add_matching, argparsing, external, find_project, hostingapi, rmapi
 
 # Match a version string consisting entirely of numerics
 NUMERIC_VER_RE = re.compile(r'^(\d+\.)*\d+$')
@@ -44,6 +39,7 @@ PEP440_SUFF = 'a;b;rc;dev'
 @dataclass
 class ProjectData:
     """Holds all data needed to add a new project."""
+
     project: str = ''
     package: str = ''
     url: str = ''
@@ -644,7 +640,7 @@ def main():
         try:
             lineparts = shlex.split(l)
         except ValueError:
-            logging.error('Invalid format line: %s', l)
+            logging.exception('Invalid format line: %s', l)
             continue
         if len(lineparts) < 3:
             logging.error('Not enough arguments in line: %s', l)

@@ -19,6 +19,7 @@ PACKAGE_RE = re.compile(r'^(.*)(-[\w\.+~^]+-[\w\.]+\.(\w)+(\d+))(\.\w+)?\.src\.r
 @dataclass
 class ProjectData:
     """Holds all data needed to add a new project."""
+
     project: str = ''
     package: str = ''
     url: str = ''

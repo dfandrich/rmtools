@@ -26,6 +26,7 @@ def parse_refresh_url(content: str) -> str:
 
 class RefreshParser(html.parser.HTMLParser):
     """Parser for HTML pages to find refresh meta tags."""
+
     def __init__(self):
         super().__init__()
         self.url = ''

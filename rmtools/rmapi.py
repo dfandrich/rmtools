@@ -10,7 +10,6 @@ from typing import Any, Optional
 
 from rmtools import netreq
 
-
 # The base URL for API requests
 BASE_URL = 'https://release-monitoring.org/api/v2/'
 

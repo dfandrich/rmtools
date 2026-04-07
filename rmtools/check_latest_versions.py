@@ -13,7 +13,6 @@ from rmtools import rmapi
 
 import yaml
 
-
 CONFIG_FILE = 'rmcheck.yaml'
 DATA_FILE = 'rmversions'
 
@@ -21,6 +20,7 @@ DATA_FILE = 'rmversions'
 @dataclass
 class Ver:
     """Holds a project version."""
+
     ecosystem: str
     project: str
     version: str
@@ -33,6 +33,7 @@ class PersistentVersions:
     @dataclass
     class PersistentVersionsData:
         """Version numbers to persist to check next time."""
+
         config_ver: int  # always 1 (for now)
         check_time: float
         versions: dict[tuple, str]

@@ -9,11 +9,7 @@ import time
 from typing import Optional
 from urllib import parse
 
-from rmtools import argparsing
-from rmtools import external
-from rmtools import hostingapi
-from rmtools import rmapi
-
+from rmtools import argparsing, external, hostingapi, rmapi
 
 # Match scheme
 MATCH_SCHEME_RE = re.compile(r'^[-+.a-zA-Z0-9]+:')

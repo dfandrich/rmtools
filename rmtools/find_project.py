@@ -9,8 +9,7 @@ import time
 from typing import Optional
 from urllib import parse
 
-from rmtools import add_matching
-from rmtools import rmapi
+from rmtools import add_matching, rmapi
 
 # Matches a download URL
 DOWNLOAD_ARCHIVE_MATCH_RE = re.compile(r'[^/]\.(tar|zip|lzh|rar|cab|tgz|tbz|txz|jar)(\.\w{1,5})?$')

@@ -140,6 +140,7 @@ class ProjInfo:
 
     class ProjStatus(enum.IntEnum):
         """Project status conditions."""
+
         UNKNOWN = enum.auto()   # unable to determine project status
         INVALID = enum.auto()   # project existed but is no longer available (disabled)
         VALID = enum.auto()     # project exists and is enabled
@@ -248,6 +249,7 @@ class SavannahParser(html.parser.HTMLParser):
     Date is available in this style of tree:
       <h2>Latest News</h2><span class="smaller">xxx<a>proj</a>HERE IS THE DATE</span>
     """
+
     def __init__(self):
         super().__init__()
         self.date = ''        # Extracted date
@@ -336,6 +338,7 @@ def parse_savannah(html: str) -> Optional[ProjInfo]:
 
 class OcamlParser(html.parser.HTMLParser):
     """Parser for opam.ocaml.org HTML pages."""
+
     def __init__(self):
         super().__init__()
         self.urls = []        # List of extracted URLs
