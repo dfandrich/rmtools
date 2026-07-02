@@ -1,5 +1,7 @@
 """API to access external code hosting providers."""
 
+from __future__ import annotations
+
 import contextlib
 import datetime
 import enum
@@ -13,7 +15,6 @@ import sys
 import threading
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from typing import Optional
 from urllib import parse
 
 from rmtools import netreq
@@ -148,7 +149,7 @@ class ProjInfo:
         VALID = enum.auto()     # project exists and is enabled
 
     status: ProjStatus
-    last_modified: Optional[datetime.datetime]
+    last_modified: datetime.datetime | None
     urls: list[str]
 
 
@@ -316,7 +317,7 @@ def setctimelocale():
             locale.setlocale(locale.LC_TIME, saved)
 
 
-def parse_savannah(html: str) -> Optional[ProjInfo]:
+def parse_savannah(html: str) -> ProjInfo | None:
     """Parse a Savannah page to extract useful info.
 
     Savannah doesn't appear to offer an API for extracting this info, so screen-scrape it.
@@ -369,7 +370,7 @@ class OcamlParser(html.parser.HTMLParser):
             self.in_interesting_url = False
 
 
-def parse_ocaml(html: str) -> Optional[ProjInfo]:
+def parse_ocaml(html: str) -> ProjInfo | None:
     """Parse a opam.ocaml.org page to extract useful info.
 
     opam2web doesn't appear to offer an API for extracting this info, so screen-scrape it.
@@ -435,7 +436,7 @@ def get_pagure_repo(url: str) -> str:
 class HostingAPI:
     """API to obtain project information from various project hosting sites."""
 
-    def __init__(self, gh_token: Optional[str]):
+    def __init__(self, gh_token: str | None):
         self.req = netreq.Session()
         self.gh_token = gh_token
         # Initialize the cache here to avoid memory leaks (see flake8 issue B019)
@@ -455,7 +456,7 @@ class HostingAPI:
             return ('', '')
         return tuple(path.split('/')[1:3])
 
-    def get_gh_info(self, url: str) -> Optional[ProjInfo]:
+    def get_gh_info(self, url: str) -> ProjInfo | None:
         """Retrieves interesting metadata about a Github project.
 
         See https://docs.github.com/en/rest/repos/repos?apiVersion=2022-11-28#get-a-repository
@@ -553,7 +554,7 @@ class HostingAPI:
         return [r['name'] for r in json.loads(resp.text)]
 
     def _get_gitlab_info(self, base_url_tmpl: str, pages_url_tmpl: str, inactive_url_tmpl: str,
-                         url: str) -> Optional[ProjInfo]:
+                         url: str) -> ProjInfo | None:
         """Retrieves the home page URL set for a Gitlab project.
 
         See https://docs.gitlab.com/api/rest/
@@ -626,7 +627,7 @@ class HostingAPI:
         urls = [url for url in urls if url]
         return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
-    def get_gitlab_com_info(self, url: str) -> Optional[ProjInfo]:
+    def get_gitlab_com_info(self, url: str) -> ProjInfo | None:
         """Retrieves info for a Gitlab.com project.
 
         Args:
@@ -634,7 +635,7 @@ class HostingAPI:
         """
         return self._get_gitlab_info(GITLAB_BASE_URL, GITLAB_COM_PAGES_URL, GITLAB_INACTIVE_URL, url)
 
-    def get_private_gitlab_info(self, url: str) -> Optional[ProjInfo]:
+    def get_private_gitlab_info(self, url: str) -> ProjInfo | None:
         """Retrieves info for a standardized private Gitlab project.
 
         Args:
@@ -683,7 +684,7 @@ class HostingAPI:
         """
         return self._get_gitlab_tags(GITLAB_TAGS_URL, url)
 
-    def get_shortpages_gitlab_info(self, url: str) -> Optional[ProjInfo]:
+    def get_shortpages_gitlab_info(self, url: str) -> ProjInfo | None:
         """Retrieves info for a standardized private Gitlab project.
 
         The pages URL doesn't have "gitlab." in the domain.
@@ -699,7 +700,7 @@ class HostingAPI:
         return self._get_gitlab_info(base_api_tmpl, base_pages_tmpl, '', url)
 
     def _get_forgejo_info(self, base_url_tmpl: str, pages_url_tmpl: str,
-                          url: str) -> Optional[ProjInfo]:
+                          url: str) -> ProjInfo | None:
         """Retrieves the home page URL set for a Forgejo project.
 
         See https://codeberg.org/api/swagger
@@ -749,7 +750,7 @@ class HostingAPI:
             last_modified=last_modified,
             urls=urls)
 
-    def get_codeberg_info(self, url: str) -> Optional[ProjInfo]:
+    def get_codeberg_info(self, url: str) -> ProjInfo | None:
         """Retrieves info for a codeberg.org project.
 
         Args:
@@ -757,7 +758,7 @@ class HostingAPI:
         """
         return self._get_forgejo_info(CODEBERG_BASE_URL, CODEBERG_PAGES_URL, url)
 
-    def get_fedoraforge_info(self, url: str) -> Optional[ProjInfo]:
+    def get_fedoraforge_info(self, url: str) -> ProjInfo | None:
         """Retrieves info for a forge.fedoraproject.org project.
 
         Args:
@@ -823,7 +824,7 @@ class HostingAPI:
         """
         return self._get_forgejo_tags(FEDORAFORGE_TAGS_URL, url)
 
-    def _get_pagure_info(self, base_url_tmpl: str, url: str) -> Optional[ProjInfo]:
+    def _get_pagure_info(self, base_url_tmpl: str, url: str) -> ProjInfo | None:
         """Retrieves interesting metadata about a Pagure project.
 
         See https://pagure.io/api/0/
@@ -860,7 +861,7 @@ class HostingAPI:
             last_modified=last_modified,
             urls=urls)
 
-    def get_pagureio_info(self, url: str) -> Optional[ProjInfo]:
+    def get_pagureio_info(self, url: str) -> ProjInfo | None:
         """Retrieves interesting metadata about a Pagure project.
 
         See https://pagure.io/api/0/
@@ -870,7 +871,7 @@ class HostingAPI:
         """
         return self._get_pagure_info(PAGUREIO_BASE_URL, url)
 
-    def get_srcfedora_info(self, url: str) -> Optional[ProjInfo]:
+    def get_srcfedora_info(self, url: str) -> ProjInfo | None:
         """Retrieves interesting metadata about a src.fedoraproject.org project.
 
         Args:
@@ -921,7 +922,7 @@ class HostingAPI:
         """
         return self._get_pagure_tags(SRCFEDORA_TAGS_URL, url)
 
-    def get_pypi_info(self, url: str) -> Optional[ProjInfo]:
+    def get_pypi_info(self, url: str) -> ProjInfo | None:
         """Retrieves info for a PyPi project.
 
         See https://docs.pypi.org/api/json/
@@ -969,7 +970,7 @@ class HostingAPI:
         urls = [url for url in urls if url and url != 'UKNOWN']
         return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
-    def get_crates_info(self, url: str) -> Optional[ProjInfo]:
+    def get_crates_info(self, url: str) -> ProjInfo | None:
         """Retrieves info for a crates.io project.
 
         See https://doc.rust-lang.org/cargo/reference/registry-index.html#index-format
@@ -1001,7 +1002,7 @@ class HostingAPI:
         urls = [url for url in urls if url]
         return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
-    def get_cpan_info(self, url: str) -> Optional[ProjInfo]:
+    def get_cpan_info(self, url: str) -> ProjInfo | None:
         """Retrieves info for a CPAN project.
 
         See https://github.com/metacpan/metacpan-api/blob/master/docs/API-docs.md
@@ -1033,7 +1034,7 @@ class HostingAPI:
         urls = [url for url in urls if url]
         return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
-    def get_sf_info(self, url: str) -> Optional[ProjInfo]:
+    def get_sf_info(self, url: str) -> ProjInfo | None:
         """Retrieves info for a SourceForge project.
 
         See https://sourceforge.net/api-docs/#operation/GET_neighborhood-project
@@ -1125,7 +1126,7 @@ class HostingAPI:
         urls = [url for url in urls if url]
         return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
-    def _get_npm_info(self, base_url_tmpl: str, url: str) -> Optional[ProjInfo]:
+    def _get_npm_info(self, base_url_tmpl: str, url: str) -> ProjInfo | None:
         """Retrieves info for a npm/npmjs project.
 
         The proper base API template must be supplied.
@@ -1167,7 +1168,7 @@ class HostingAPI:
         urls = [url for url in urls if url]
         return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
-    def get_npm_info(self, url: str) -> Optional[ProjInfo]:
+    def get_npm_info(self, url: str) -> ProjInfo | None:
         """Retrieves info for a npm project.
 
         See https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md
@@ -1177,7 +1178,7 @@ class HostingAPI:
         """
         return self._get_npm_info(NPM_BASE_URL, url)
 
-    def get_npmjs_info(self, url: str) -> Optional[ProjInfo]:
+    def get_npmjs_info(self, url: str) -> ProjInfo | None:
         """Retrieves info for a npmjs project.
 
         See https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md
@@ -1187,7 +1188,7 @@ class HostingAPI:
         """
         return self._get_npm_info(NPMJS_BASE_URL, url)
 
-    def get_ruby_info(self, url: str) -> Optional[ProjInfo]:
+    def get_ruby_info(self, url: str) -> ProjInfo | None:
         """Retrieves info for a Rubygems project.
 
         See https://guides.rubygems.org/rubygems-org-api/#gem-methods
@@ -1220,7 +1221,7 @@ class HostingAPI:
         urls = [url for url in urls if url]
         return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
-    def get_maven_info(self, url: str) -> Optional[ProjInfo]:
+    def get_maven_info(self, url: str) -> ProjInfo | None:
         """Retrieves info for a Maven project.
 
         See https://central.sonatype.com/api-doc
@@ -1305,7 +1306,7 @@ class HostingAPI:
         urls = [url for url in urls if url]
         return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
-    def get_launchpad_info(self, url: str) -> Optional[ProjInfo]:
+    def get_launchpad_info(self, url: str) -> ProjInfo | None:
         """Retrieves the home page set for a Launchpad project.
 
         Args:
@@ -1360,7 +1361,7 @@ class HostingAPI:
         urls = [url for url in urls if url]
         return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
-    def _get_savannah_info(self, base_url_tmpl: str, url: str) -> Optional[ProjInfo]:
+    def _get_savannah_info(self, base_url_tmpl: str, url: str) -> ProjInfo | None:
         """Retrieves info for a GNU Savannah project.
 
         Args:
@@ -1384,7 +1385,7 @@ class HostingAPI:
             return None
         return parse_savannah(resp.text)
 
-    def get_gnusavannah_info(self, url: str) -> Optional[ProjInfo]:
+    def get_gnusavannah_info(self, url: str) -> ProjInfo | None:
         """Retrieves info for a GNU Savannah project.
 
         Args:
@@ -1392,7 +1393,7 @@ class HostingAPI:
         """
         return self._get_savannah_info(GNUSV_BASE_URL, url)
 
-    def get_nongnusavannah_info(self, url: str) -> Optional[ProjInfo]:
+    def get_nongnusavannah_info(self, url: str) -> ProjInfo | None:
         """Retrieves info for a Non-GNU Savannah project.
 
         Args:
@@ -1400,7 +1401,7 @@ class HostingAPI:
         """
         return self._get_savannah_info(NONGNUSV_BASE_URL, url)
 
-    def get_ocaml_info(self, url: str) -> Optional[ProjInfo]:
+    def get_ocaml_info(self, url: str) -> ProjInfo | None:
         """Retrieves info for a opam entry.
 
         Args:
@@ -1423,7 +1424,7 @@ class HostingAPI:
             return None
         return parse_ocaml(resp.text)
 
-    def get_readthedocs_info(self, url: str) -> Optional[ProjInfo]:
+    def get_readthedocs_info(self, url: str) -> ProjInfo | None:
         """Parse a ReadTheDocs page to extract useful info.
 
         See https://docs.readthedocs.com/platform/stable/api/v3.html
@@ -1460,7 +1461,7 @@ class HostingAPI:
         urls = [url for url in urls if url]
         return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
-    def get_googlecode_info(self, url: str) -> Optional[ProjInfo]:
+    def get_googlecode_info(self, url: str) -> ProjInfo | None:
         """Parse a Google Code archive page to extract useful info.
 
         Args:
@@ -1510,7 +1511,7 @@ class HostingAPI:
         urls = [url for url in urls if url]
         return ProjInfo(status=status, last_modified=last_modified, urls=urls)
 
-    def _get_project_info(self, url: str) -> Optional[ProjInfo]:
+    def _get_project_info(self, url: str) -> ProjInfo | None:
         """Return basic information about a hosted project."""
         if not url:
             return None

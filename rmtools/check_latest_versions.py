@@ -1,5 +1,7 @@
 """Notifies when newer versions of upstream packages are available."""
 
+from __future__ import annotations
+
 import contextlib
 import datetime
 import logging
@@ -7,7 +9,7 @@ import os
 import pickle
 import sys
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from rmtools import rmapi
 
@@ -41,14 +43,14 @@ class PersistentVersions:
         versions: dict[tuple, str]
 
     def __init__(self):
-        self.data: Optional[self.PersistentVersionsData] = None
+        self.data: self.PersistentVersionsData | None = None
 
     def set_vers(self, vers_dict: dict[tuple, str]):
         """Set new versions to persist."""
         self.data = self.PersistentVersionsData(
             1, datetime.datetime.now(tz=datetime.timezone.utc).timestamp(), vers_dict)
 
-    def get(self) -> Optional[PersistentVersionsData]:
+    def get(self) -> PersistentVersionsData | None:
         return self.data
 
     def persistent_dir(self):
@@ -73,7 +75,7 @@ class PersistentVersions:
             pickle.dump(self.data, f, protocol=4)
 
 
-def load_config() -> Optional[dict[str, Any]]:
+def load_config() -> dict[str, Any] | None:
     """Load the program configuration file."""
 
     def load_config_file(fn: str) -> dict[str, Any]:

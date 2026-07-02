@@ -1,12 +1,13 @@
 """Add entries that match basic checks."""
 
+from __future__ import annotations
+
 import argparse
 import logging
 import re
 import shlex
 import sys
 import time
-from typing import Optional
 from urllib import parse
 
 from rmtools import argparsing, external, hostingapi, rmapi
@@ -362,7 +363,7 @@ def backend_url(project: dict) -> str:
 class ExternalComparer:
     """Class to handle comparing projects using external resources."""
 
-    def __init__(self, gh_token: Optional[str]):
+    def __init__(self, gh_token: str | None):
         self.hostapi = hostingapi.HostingAPI(gh_token)
 
     def compare(self, url: str, projects: list[dict]) -> list[dict]:

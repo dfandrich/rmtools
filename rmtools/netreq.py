@@ -1,6 +1,6 @@
 """Network request helpers."""
 
-from typing import Optional
+from __future__ import annotations
 
 import requests
 # For use by callers
@@ -20,8 +20,8 @@ class Session(requests.Session):
     """Set up a requests session with a standard configuration."""
 
     def __init__(self, total: int = 5, backoff_factor: int = 2,
-                 status_forcelist: Optional[list[int]] = None,
-                 allowed_methods: Optional[list[str]] = None):
+                 status_forcelist: list[int] | None = None,
+                 allowed_methods: list[str] | None = None):
         super().__init__()
         if not status_forcelist:
             status_forcelist = [429, 500, 502, 503, 504]

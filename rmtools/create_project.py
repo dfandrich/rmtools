@@ -3,6 +3,8 @@
 Only certain URLs will work as this is tailored for certain hosting providers.
 """
 
+from __future__ import annotations
+
 import argparse
 import datetime
 import logging
@@ -11,7 +13,6 @@ import shlex
 import sys
 import time
 from dataclasses import dataclass
-from typing import Optional
 from urllib import parse
 
 from rmtools import add_matching, argparsing, external, find_project, hostingapi, rmapi
@@ -121,7 +122,7 @@ def strip_prerelease_suffix(releases: list[str]) -> str:
     return ''
 
 
-def find_version_prefix(releases: list[str], extra: list[str]) -> Optional[str]:
+def find_version_prefix(releases: list[str], extra: list[str]) -> str | None:
     """Look for version prefixes that need to be removed to get a normal version number."""
     for prefix in [''] + extra + ['v', 'V', 'ver-', 'release-', 'Release-', 'ver', 'Ver',
                                   'version-', 'Version-', 'v-', 'V-', 'Ver-']:
@@ -134,8 +135,8 @@ class AddProject:
     """Add a project to Anitya, if known."""
 
     def __init__(self, rm: rmapi.RMApi, host: hostingapi.HostingAPI, skip_tag_check: bool,
-                 prefixes: Optional[list[str]] = None, prerelfilt: Optional[list[str]] = None,
-                 versionfilt: Optional[list[str]] = None):
+                 prefixes: list[str] | None = None, prerelfilt: list[str] | None = None,
+                 versionfilt: list[str] | None = None):
         self.rm = rm
         self.host = host
         self.prefixes = prefixes if prefixes else []
@@ -144,7 +145,7 @@ class AddProject:
         self.versionfiltstr = ';'.join(self.versionfilt)
         self.skip_tag_check = skip_tag_check
 
-    def create_project(self, backend: str, version_url: Optional[str], prefix: str, prerelease: str,
+    def create_project(self, backend: str, version_url: str | None, prefix: str, prerelease: str,
                        versionfilt: str, release: bool, project: ProjectData):
         """Create a new project on Anitya."""
         logger.debug('Creating %s %s %s %s %s %s %s %s %s', project.project, project.package,
@@ -156,7 +157,7 @@ class AddProject:
         self.rm.scan_project_versions(project.project, project.url, release)
         return project
 
-    def add_project_github(self, project: ProjectData) -> Optional[ProjectData]:
+    def add_project_github(self, project: ProjectData) -> ProjectData | None:
         logger.info('Found GitHub URL')
         srcurl = parse.urlparse(add_matching.canonicalize_url(project.source))
         parts = srcurl.path.split('/')
@@ -215,7 +216,7 @@ class AddProject:
         return self.create_project('GitHub', version_url, prefix, prerelease, self.versionfiltstr,
                                    use_release, project)
 
-    def add_project_gitlab_com(self, project: ProjectData) -> Optional[ProjectData]:
+    def add_project_gitlab_com(self, project: ProjectData) -> ProjectData | None:
         logger.info('Found GitLab.com URL')
         srcurl = parse.urlparse(add_matching.canonicalize_url(project.source))
         parts = srcurl.path.split('/')
@@ -290,7 +291,7 @@ class AddProject:
         return self.create_project('GitLab', version_url, prefix, prerelease, self.versionfiltstr,
                                    use_release, project)
 
-    def add_project_sourceforge(self, project: ProjectData) -> Optional[ProjectData]:
+    def add_project_sourceforge(self, project: ProjectData) -> ProjectData | None:
         logger.info('Found Sourceforge URL')
         srcurl = parse.urlparse(add_matching.canonicalize_url(project.source))
         parts = srcurl.path.split('/')
@@ -312,7 +313,7 @@ class AddProject:
         return self.create_project('Sourceforge', version_url, '', '', self.versionfiltstr,
                                    False, project)
 
-    def add_project_pagureio(self, project: ProjectData) -> Optional[ProjectData]:
+    def add_project_pagureio(self, project: ProjectData) -> ProjectData | None:
         logger.info('Found Pagure URL')
         canon = add_matching.canonicalize_url(project.source, strip_scheme=False)
         srcurl = parse.urlparse(canon)
@@ -373,7 +374,7 @@ class AddProject:
         return self.create_project('pagure', None, prefix, prerelease, self.versionfiltstr,
                                    False, project)
 
-    def add_project_forgejo(self, project: ProjectData) -> Optional[ProjectData]:
+    def add_project_forgejo(self, project: ProjectData) -> ProjectData | None:
         logger.info('Found Forgejo URL')
         canonurl = add_matching.canonicalize_url(project.source, strip_scheme=False)
         srcurl = parse.urlparse(canonurl)
@@ -445,7 +446,7 @@ class AddProject:
         return self.create_project('Gitea', version_url, prefix, prerelease, self.versionfiltstr,
                                    use_release, project)
 
-    def add_project_ecosystem(self, ecosystem: str, project: ProjectData) -> Optional[ProjectData]:
+    def add_project_ecosystem(self, ecosystem: str, project: ProjectData) -> ProjectData | None:
         """Add this project with the correct update parameters for a number of ecosystems."""
         logger.info('Found %s URL', ecosystem)
         ecosystem_name = find_project.ecosystem_name(add_matching.canonicalize_url(project.source))
@@ -461,19 +462,19 @@ class AddProject:
         self.create_project(ecosystem, '', '', '', self.versionfiltstr, False, project)
         return project
 
-    def add_project_pypi(self, project: ProjectData) -> Optional[ProjectData]:
+    def add_project_pypi(self, project: ProjectData) -> ProjectData | None:
         return self.add_project_ecosystem('PyPI', project)
 
-    def add_project_cratesio(self, project: ProjectData) -> Optional[ProjectData]:
+    def add_project_cratesio(self, project: ProjectData) -> ProjectData | None:
         return self.add_project_ecosystem('crates.io', project)
 
-    def add_project_rubygems(self, project: ProjectData) -> Optional[ProjectData]:
+    def add_project_rubygems(self, project: ProjectData) -> ProjectData | None:
         return self.add_project_ecosystem('Rubygems', project)
 
-    def add_project_npmjs(self, project: ProjectData) -> Optional[ProjectData]:
+    def add_project_npmjs(self, project: ProjectData) -> ProjectData | None:
         return self.add_project_ecosystem('npmjs', project)
 
-    def add_project_cpan(self, project: ProjectData) -> Optional[ProjectData]:
+    def add_project_cpan(self, project: ProjectData) -> ProjectData | None:
         """Add this project with the correct update parameters for CPAN."""
         logger.info('Found CPAN URL')
         project.ecosystem = project.url
@@ -491,7 +492,7 @@ class AddProject:
 
         return self.create_project('CPAN (perl)', None, '', '', self.versionfiltstr, False, project)
 
-    def add_project(self, project: ProjectData) -> Optional[ProjectData]:
+    def add_project(self, project: ProjectData) -> ProjectData | None:
         """Add a project to Anitya, if known.
 
         Only certain URLs will work as this is tailored for certain hosting providers.

@@ -3,10 +3,12 @@
 See https://release-monitoring.org/static/docs/api.html
 """
 
+from __future__ import annotations
+
 import functools
 import json
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from rmtools import netreq
 
@@ -27,7 +29,7 @@ DATA_TYPE = 'application/json'
 class RMApi:
     """Class for performing requests on release-monitoring.org."""
 
-    def __init__(self, token: Optional[str] = None, dry_run: bool = False):
+    def __init__(self, token: str | None = None, dry_run: bool = False):
         """Initializes the release-monitoring API object.
 
         Args:
@@ -68,7 +70,7 @@ class RMApi:
             logger.info('Wanted %d, got %d', r['total_items'], len(items))
         return items
 
-    def get_distro_package_info(self, distro: str, package: str) -> Optional[dict[str, Any]]:
+    def get_distro_package_info(self, distro: str, package: str) -> dict[str, Any] | None:
         """Returns information about a package found in a distro.
 
         Returns:
@@ -131,7 +133,7 @@ class RMApi:
         resp.raise_for_status()
 
     def create_new_project(self, project_name: str, url: str, backend: str,
-                           version_url: Optional[str], version_prefix: str, prerelease: str,
+                           version_url: str | None, version_prefix: str, prerelease: str,
                            versionfilt: str):
         """Creates a new package for a given project."""
         if self.dry_run:

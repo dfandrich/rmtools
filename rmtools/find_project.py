@@ -1,12 +1,13 @@
 """Find projects that match a URL."""
 
+from __future__ import annotations
+
 import argparse
 import logging
 import re
 import shlex
 import sys
 import time
-from typing import Optional
 from urllib import parse
 
 from rmtools import add_matching, rmapi
@@ -40,7 +41,7 @@ def swap_www(url: str) -> str:
     return parse.urlunparse(parsed._replace(netloc='www.' + parsed.netloc))
 
 
-def ecosystem_name(url: str) -> Optional[tuple[str, str]]:
+def ecosystem_name(url: str) -> tuple[str, str] | None:
     """Returns the project name for a specific ecosystem from a canonical URL.
 
     This only works for ecosystems other than the generic, URL-specified one.
