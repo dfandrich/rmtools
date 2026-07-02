@@ -13,6 +13,8 @@ from rmtools import rmapi
 
 import yaml
 
+logger = logging.getLogger(__name__)
+
 CONFIG_FILE = 'rmcheck.yaml'
 DATA_FILE = 'rmversions'
 
@@ -63,7 +65,7 @@ class PersistentVersions:
             with open(os.path.join(self.persistent_dir(), DATA_FILE), 'rb') as f:
                 self.data = pickle.load(f)
         except FileNotFoundError:
-            logging.warning('Previous version file not found; first run?')
+            logger.warning('Previous version file not found; first run?')
 
     def save(self):
         """Save the versions in a file to load in later."""
@@ -95,18 +97,18 @@ def check_packages(rm: rmapi.RMApi, packages: dict[str, list[str]], unstable: bo
     vers = []
     for distro, value in packages.items():
         for package in value:
-            logging.info('Retrieving version for %s', package)
+            logger.info('Retrieving version for %s', package)
             try:
                 info = rm.get_distro_package_info(distro, package)
             except Exception:  # noqa: PIE786
-                logging.exception('Error retrieving package info for "%s" in distro "%s"',
-                                  package, distro)
+                logger.exception('Error retrieving package info for "%s" in distro "%s"',
+                                 package, distro)
             else:
                 if info:
                     ver = info['version' if unstable else 'stable_version']
                     vers.append(Ver(info['ecosystem'], info['project'], ver, unstable))
                 else:
-                    logging.warning('Package not found for "%s" in distro "%s"', package, distro)
+                    logger.warning('Package not found for "%s" in distro "%s"', package, distro)
     return vers
 
 
@@ -132,11 +134,11 @@ def main() -> int:
 
     conf = load_config()
     if not conf:
-        logging.fatal('Configuration file could not be read')
+        logger.fatal('Configuration file could not be read')
         return 1
 
     if 'check_packages' not in conf and 'check_packages_unstable' not in conf:
-        logging.fatal('No packages have been configured')
+        logger.fatal('No packages have been configured')
         return 1
 
     persist = PersistentVersions()
@@ -144,12 +146,12 @@ def main() -> int:
     previous = persist.get()
     if previous:
         if previous.config_ver != 1:
-            logging.error('Persist file is from a newer version; delete it to continue')
+            logger.error('Persist file is from a newer version; delete it to continue')
             return 2
         prev_date = datetime.datetime.fromtimestamp(previous.check_time, tz=datetime.timezone.utc)
         delta = datetime.datetime.now(tz=datetime.timezone.utc) - prev_date
-        logging.info('Last check was at %s (%d hours ago)',
-                     datetime.datetime.ctime(prev_date), delta.total_seconds() / 3600)
+        logger.info('Last check was at %s (%d hours ago)',
+                    datetime.datetime.ctime(prev_date), delta.total_seconds() / 3600)
 
     rm = rmapi.RMApi()
     if 'check_packages' in conf:
@@ -174,17 +176,17 @@ def main() -> int:
             key = make_key(ver)
             if key in previous.versions:
                 if previous.versions[key] != ver.version:
-                    logging.info('New version found for %s (at %s): %s -> %s',
-                                 ver.project, ver.ecosystem,
-                                 previous.versions[key], ver.version)
+                    logger.info('New version found for %s (at %s): %s -> %s',
+                                ver.project, ver.ecosystem,
+                                previous.versions[key], ver.version)
                     new_ver.append(ver)
             else:
-                logging.info('New package: %s (at %s)',
-                             ver.project, ver.ecosystem)
+                logger.info('New package: %s (at %s)',
+                            ver.project, ver.ecosystem)
 
         notify_new_ver(new_ver)
     else:
-        logging.warning('First time running; initializing package versions')
+        logger.warning('First time running; initializing package versions')
 
     persist.set_vers(vers_dict)
     persist.save()

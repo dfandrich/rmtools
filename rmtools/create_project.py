@@ -16,6 +16,8 @@ from urllib import parse
 
 from rmtools import add_matching, argparsing, external, find_project, hostingapi, rmapi
 
+logger = logging.getLogger(__name__)
+
 # Match a version string consisting entirely of numerics
 NUMERIC_VER_RE = re.compile(r'^(\d+\.)*\d+$')
 
@@ -145,8 +147,8 @@ class AddProject:
     def create_project(self, backend: str, version_url: Optional[str], prefix: str, prerelease: str,
                        versionfilt: str, release: bool, project: ProjectData):
         """Create a new project on Anitya."""
-        logging.debug('Creating %s %s %s %s %s %s %s %s %s', project.project, project.package,
-                      project.url, version_url, backend, prefix, prerelease, versionfilt, release)
+        logger.debug('Creating %s %s %s %s %s %s %s %s %s', project.project, project.package,
+                     project.url, version_url, backend, prefix, prerelease, versionfilt, release)
         self.rm.create_new_project(project.project, project.url, backend, version_url, prefix,
                                    prerelease, versionfilt)
         # Must start a scan as a separate operation since there is no other way to set the
@@ -155,11 +157,11 @@ class AddProject:
         return project
 
     def add_project_github(self, project: ProjectData) -> Optional[ProjectData]:
-        logging.info('Found GitHub URL')
+        logger.info('Found GitHub URL')
         srcurl = parse.urlparse(add_matching.canonicalize_url(project.source))
         parts = srcurl.path.split('/')
         if len(parts) < 3:
-            logging.warning('Bad GitHub URL %s', project.source)
+            logger.warning('Bad GitHub URL %s', project.source)
             return None
         owner, repo = parts[1:]
         version_url = f'{owner}/{repo}'
@@ -168,10 +170,10 @@ class AddProject:
         use_release = True
         if not releases:
             use_release = False
-            logging.debug('Trying tags')
+            logger.debug('Trying tags')
             releases = self.host.get_gh_tags(project.source)
             if not releases:
-                logging.warning('Skipping %s due to no tags', project.project)
+                logger.warning('Skipping %s due to no tags', project.project)
                 return None
         orig_releases = releases.copy()
 
@@ -189,13 +191,13 @@ class AddProject:
             project.project + '-v', repo + '-v', project.project + '-', repo + '-']
         prefix = find_version_prefix(releases, prefixes)
         if prefix is None:
-            logging.warning('Skipping %s due to questionable release tags', project.project)
-            logging.debug('Remaining Tags: %s', repr(releases))
-            logging.debug('Original tags: %s', repr(orig_releases))
-            logging.debug('Using prerelease filters %s', prerelease)
+            logger.warning('Skipping %s due to questionable release tags', project.project)
+            logger.debug('Remaining Tags: %s', repr(releases))
+            logger.debug('Original tags: %s', repr(orig_releases))
+            logger.debug('Using prerelease filters %s', prerelease)
             if not self.skip_tag_check:
                 return None
-            logging.warning('Continuing despite bad release tags, as requested')
+            logger.warning('Continuing despite bad release tags, as requested')
             # Use the provided prefixes unconditionally
             prefix = ';'.join(self.prefixes)
             # Use the provided prerelease filters if given
@@ -203,29 +205,29 @@ class AddProject:
                 prerelease = ';'.join(self.prerelfilt)
 
         if any(YEAR_VER_RE.search(r.removeprefix(prefix)) for r in releases):
-            logging.warning('Skipping %s due to possible calendar release tags', project.project)
+            logger.warning('Skipping %s due to possible calendar release tags', project.project)
             # TODO: set the calendar flag for these
             if not self.skip_tag_check:
                 return None
-            logging.warning('Continuing despite bad release tags, as requested')
+            logger.warning('Continuing despite bad release tags, as requested')
 
         project.ecosystem = project.url
         return self.create_project('GitHub', version_url, prefix, prerelease, self.versionfiltstr,
                                    use_release, project)
 
     def add_project_gitlab_com(self, project: ProjectData) -> Optional[ProjectData]:
-        logging.info('Found GitLab.com URL')
+        logger.info('Found GitLab.com URL')
         srcurl = parse.urlparse(add_matching.canonicalize_url(project.source))
         parts = srcurl.path.split('/')
 
         # Home page link
         if len(parts) <= 2 or len(parts) == 4:
-            logging.warning('Bad GitLab.com URL %s', project.source)
+            logger.warning('Bad GitLab.com URL %s', project.source)
             return None
 
         # Archive link
         if len(parts) >= 5 and parts[3:5] != ['-', 'archive']:
-            logging.warning('Bad GitLab.com URL %s', project.source)
+            logger.warning('Bad GitLab.com URL %s', project.source)
             return None
 
         # TODO: handle three levels of namespace, not just two.
@@ -243,10 +245,10 @@ class AddProject:
         # Anitya does not support gitlab.com releases yet, so there is no point in
         # looking at them for now.
         use_release = False
-        logging.debug('Trying tags')
+        logger.debug('Trying tags')
         releases = self.host.get_gitlab_com_tags(project.source)
         if not releases:
-            logging.warning('Skipping %s due to no tags', project.project)
+            logger.warning('Skipping %s due to no tags', project.project)
             return None
         orig_releases = releases.copy()
 
@@ -264,13 +266,13 @@ class AddProject:
             project.project + '-v', repo + '-v', project.project + '-', repo + '-']
         prefix = find_version_prefix(releases, prefixes)
         if prefix is None:
-            logging.warning('Skipping %s due to questionable release tags', project.project)
-            logging.debug('Remaining Tags: %s', repr(releases))
-            logging.debug('Original tags: %s', repr(orig_releases))
-            logging.debug('Using prerelease filters %s', prerelease)
+            logger.warning('Skipping %s due to questionable release tags', project.project)
+            logger.debug('Remaining Tags: %s', repr(releases))
+            logger.debug('Original tags: %s', repr(orig_releases))
+            logger.debug('Using prerelease filters %s', prerelease)
             if not self.skip_tag_check:
                 return None
-            logging.warning('Continuing despite bad release tags, as requested')
+            logger.warning('Continuing despite bad release tags, as requested')
             # Use the provided prefixes unconditionally
             prefix = ';'.join(self.prefixes)
             # Use the provided prerelease filters if no others were found
@@ -278,22 +280,22 @@ class AddProject:
                 prerelease = ';'.join(self.prerelfilt)
 
         if any(YEAR_VER_RE.search(r.removeprefix(prefix)) for r in releases):
-            logging.warning('Skipping %s due to possible calendar release tags', project.project)
+            logger.warning('Skipping %s due to possible calendar release tags', project.project)
             # TODO: set the calendar flag for these
             if not self.skip_tag_check:
                 return None
-            logging.warning('Continuing despite bad release tags, as requested')
+            logger.warning('Continuing despite bad release tags, as requested')
 
         project.ecosystem = project.url
         return self.create_project('GitLab', version_url, prefix, prerelease, self.versionfiltstr,
                                    use_release, project)
 
     def add_project_sourceforge(self, project: ProjectData) -> Optional[ProjectData]:
-        logging.info('Found Sourceforge URL')
+        logger.info('Found Sourceforge URL')
         srcurl = parse.urlparse(add_matching.canonicalize_url(project.source))
         parts = srcurl.path.split('/')
         if len(parts) < 3:
-            logging.warning('Bad Sourceforge URL %s', project.source)
+            logger.warning('Bad Sourceforge URL %s', project.source)
             return None
         version_url = parts[2]
 
@@ -311,25 +313,25 @@ class AddProject:
                                    False, project)
 
     def add_project_pagureio(self, project: ProjectData) -> Optional[ProjectData]:
-        logging.info('Found Pagure URL')
+        logger.info('Found Pagure URL')
         canon = add_matching.canonicalize_url(project.source, strip_scheme=False)
         srcurl = parse.urlparse(canon)
         parts = srcurl.path.split('/')
         if len(parts) < 2 or len(parts) > 4:
             # This shouldn't happen if we're given a canonical URL as required
-            logging.warning('Bad Pagure URL %s', project.source)
+            logger.warning('Bad Pagure URL %s', project.source)
             return None
 
         fullrepo = '/'.join(parts[1:])
         if project.project != fullrepo:
-            logging.warning('Using ecosystem name (%s) not the supplied project name (%s)',
-                            fullrepo, project.project)
+            logger.warning('Using ecosystem name (%s) not the supplied project name (%s)',
+                           fullrepo, project.project)
             project.project = fullrepo
         repo = parts[-1]
 
         tags = self.host.get_pagureio_tags(project.source)
         if not tags:
-            logging.warning('Skipping %s due to no tags', project.project)
+            logger.warning('Skipping %s due to no tags', project.project)
             return None
         orig_tags = tags.copy()
 
@@ -347,13 +349,13 @@ class AddProject:
             project.project + '-v', repo + '-v', project.project + '-', repo + '-']
         prefix = find_version_prefix(tags, prefixes)
         if prefix is None:
-            logging.warning('Skipping %s due to questionable release tags', project.project)
-            logging.debug('Remaining Tags: %s', repr(tags))
-            logging.debug('Original tags: %s', repr(orig_tags))
-            logging.debug('Using prerelease filters %s', prerelease)
+            logger.warning('Skipping %s due to questionable release tags', project.project)
+            logger.debug('Remaining Tags: %s', repr(tags))
+            logger.debug('Original tags: %s', repr(orig_tags))
+            logger.debug('Using prerelease filters %s', prerelease)
             if not self.skip_tag_check:
                 return None
-            logging.warning('Continuing despite bad release tags, as requested')
+            logger.warning('Continuing despite bad release tags, as requested')
             # Use the provided prefixes unconditionally
             prefix = ';'.join(self.prefixes)
             # Use the provided prerelease filters if given
@@ -361,23 +363,23 @@ class AddProject:
                 prerelease = ';'.join(self.prerelfilt)
 
         if any(YEAR_VER_RE.search(r.removeprefix(prefix)) for r in tags):
-            logging.warning('Skipping %s due to possible calendar release tags', project.project)
+            logger.warning('Skipping %s due to possible calendar release tags', project.project)
             # TODO: set the calendar flag for these
             if not self.skip_tag_check:
                 return None
-            logging.warning('Continuing despite bad release tags, as requested')
+            logger.warning('Continuing despite bad release tags, as requested')
 
         project.ecosystem = project.url
         return self.create_project('pagure', None, prefix, prerelease, self.versionfiltstr,
                                    False, project)
 
     def add_project_forgejo(self, project: ProjectData) -> Optional[ProjectData]:
-        logging.info('Found Forgejo URL')
+        logger.info('Found Forgejo URL')
         canonurl = add_matching.canonicalize_url(project.source, strip_scheme=False)
         srcurl = parse.urlparse(canonurl)
         parts = srcurl.path.split('/')
         if len(parts) < 3:
-            logging.warning('Bad Forgejo URL %s', project.source)
+            logger.warning('Bad Forgejo URL %s', project.source)
             return None
 
         _owner, repo = parts[1:3]
@@ -387,19 +389,19 @@ class AddProject:
         elif srcurl.netloc == 'forge.fedoraproject.org':
             releases = self.host.get_fedoraforge_releases(project.source)
         else:
-            logging.error('Skipping %s due to unknown Forgejo host', project.source)
+            logger.error('Skipping %s due to unknown Forgejo host', project.source)
             return None
 
         use_release = True
         if not releases:
             use_release = False
-            logging.debug('Trying tags')
+            logger.debug('Trying tags')
             if srcurl.netloc == 'codeberg.org':
                 releases = self.host.get_codeberg_tags(project.source)
             elif srcurl.netloc == 'forge.fedoraproject.org':
                 releases = self.host.get_fedoraforge_tags(project.source)
         if not releases:
-            logging.warning('Skipping %s due to no tags', project.project)
+            logger.warning('Skipping %s due to no tags', project.project)
             return None
         orig_releases = releases.copy()
 
@@ -419,13 +421,13 @@ class AddProject:
             project.project + '-v', repo + '-v', project.project + '-', repo + '-']
         prefix = find_version_prefix(releases, prefixes)
         if prefix is None:
-            logging.warning('Skipping %s due to questionable release tags', project.project)
-            logging.debug('Remaining Tags: %s', repr(releases))
-            logging.debug('Original tags: %s', repr(orig_releases))
-            logging.debug('Using prerelease filters %s', prerelease)
+            logger.warning('Skipping %s due to questionable release tags', project.project)
+            logger.debug('Remaining Tags: %s', repr(releases))
+            logger.debug('Original tags: %s', repr(orig_releases))
+            logger.debug('Using prerelease filters %s', prerelease)
             if not self.skip_tag_check:
                 return None
-            logging.warning('Continuing despite bad release tags, as requested')
+            logger.warning('Continuing despite bad release tags, as requested')
             # Use the provided prefixes unconditionally
             prefix = ';'.join(self.prefixes)
             # Use the provided prerelease filters if given
@@ -433,11 +435,11 @@ class AddProject:
                 prerelease = ';'.join(self.prerelfilt)
 
         if any(YEAR_VER_RE.search(r.removeprefix(prefix)) for r in releases):
-            logging.warning('Skipping %s due to possible calendar release tags', project.project)
+            logger.warning('Skipping %s due to possible calendar release tags', project.project)
             # TODO: set the calendar flag for these
             if not self.skip_tag_check:
                 return None
-            logging.warning('Continuing despite bad release tags, as requested')
+            logger.warning('Continuing despite bad release tags, as requested')
 
         project.ecosystem = project.url
         return self.create_project('Gitea', version_url, prefix, prerelease, self.versionfiltstr,
@@ -445,15 +447,15 @@ class AddProject:
 
     def add_project_ecosystem(self, ecosystem: str, project: ProjectData) -> Optional[ProjectData]:
         """Add this project with the correct update parameters for a number of ecosystems."""
-        logging.info('Found %s URL', ecosystem)
+        logger.info('Found %s URL', ecosystem)
         ecosystem_name = find_project.ecosystem_name(add_matching.canonicalize_url(project.source))
         if not ecosystem_name:
-            logging.error('Skipping due to bad %s URL %s', ecosystem, project.source)
+            logger.error('Skipping due to bad %s URL %s', ecosystem, project.source)
             return None
         project.ecosystem, name = ecosystem_name
         if project.project != name:
-            logging.warning('Using %s ecosystem name (%s) not the supplied project name (%s)',
-                            ecosystem, name, project.project)
+            logger.warning('Using %s ecosystem name (%s) not the supplied project name (%s)',
+                           ecosystem, name, project.project)
             project.project = name
 
         self.create_project(ecosystem, '', '', '', self.versionfiltstr, False, project)
@@ -473,18 +475,18 @@ class AddProject:
 
     def add_project_cpan(self, project: ProjectData) -> Optional[ProjectData]:
         """Add this project with the correct update parameters for CPAN."""
-        logging.info('Found CPAN URL')
+        logger.info('Found CPAN URL')
         project.ecosystem = project.url
         srcurl = parse.urlparse(add_matching.canonicalize_url(project.source))
         parts = srcurl.path.split('/')
         if len(parts) < 3 or parts[1] != 'dist':
-            logging.warning('Bad CPAN URL %s', project.source)
+            logger.warning('Bad CPAN URL %s', project.source)
             return None
         name = parts[2]
 
         if project.project != name:
-            logging.warning('Using CPAN ecosystem name (%s) not the supplied project name (%s)',
-                            name, project.project)
+            logger.warning('Using CPAN ecosystem name (%s) not the supplied project name (%s)',
+                           name, project.project)
             project.project = name
 
         return self.create_project('CPAN (perl)', None, '', '', self.versionfiltstr, False, project)
@@ -494,7 +496,7 @@ class AddProject:
 
         Only certain URLs will work as this is tailored for certain hosting providers.
         """
-        logging.info('Trying to add %s', project.project)
+        logger.info('Trying to add %s', project.project)
         srcurl = parse.urlparse(add_matching.canonicalize_url(project.source))
 
         # Look for sources we recognize
@@ -532,7 +534,7 @@ class AddProject:
         if srcurl.netloc in frozenset({'codeberg.org', 'forge.fedoraproject.org'}):
             return self.add_project_forgejo(project)
 
-        logging.warning('Unsupported URL %s for %s', project.source, project.project)
+        logger.warning('Unsupported URL %s for %s', project.source, project.project)
         return None
 
 
@@ -641,28 +643,28 @@ def main():
         try:
             lineparts = shlex.split(l)
         except ValueError:
-            logging.exception('Invalid format line: %s', l)
+            logger.exception('Invalid format line: %s', l)
             continue
         if len(lineparts) < 3:
-            logging.error('Not enough arguments in line: %s', l)
+            logger.error('Not enough arguments in line: %s', l)
             continue
         if len(lineparts) > 4:
-            logging.error('Too many arguments in line: %s', l)
+            logger.error('Too many arguments in line: %s', l)
             continue
 
         proj, pkg, url = lineparts[:3]
         src = lineparts[3] if len(lineparts) >= 4 else url
 
         if parse.urlparse(proj).scheme:
-            logging.warning('Invalid project name (looks like URL): %s', proj)
+            logger.warning('Invalid project name (looks like URL): %s', proj)
             continue
 
         if parse.urlparse(pkg).scheme:
-            logging.warning('Invalid package name (looks like URL): %s', pkg)
+            logger.warning('Invalid package name (looks like URL): %s', pkg)
             continue
 
         if find_project.is_download_url(url):
-            logging.error('Skipping: cannot use download URL as homepage: %s', url)
+            logger.error('Skipping: cannot use download URL as homepage: %s', url)
             continue
 
         if args.external_check:
@@ -677,19 +679,19 @@ def main():
                 for check_url in frozenset({url, src}):
                     proj_info = host.get_project_info(add_matching.canonicalize_url(check_url))
                     if not proj_info:
-                        logging.warning('Project cannot be found on host: %s', check_url)
+                        logger.warning('Project cannot be found on host: %s', check_url)
                         continue
 
                     if proj_info.status == proj_info.ProjStatus.INVALID:
-                        logging.error('Skipping: project has been disabled on the host: %s',
-                                      check_url)
+                        logger.error('Skipping: project has been disabled on the host: %s',
+                                     check_url)
                         raise SkipError
 
                     if proj_info.last_modified:
                         delta = (datetime.datetime.now(tz=datetime.timezone.utc)
                                  - proj_info.last_modified)
                         if delta.days > args.max_project_age:
-                            logging.error(
+                            logger.error(
                                 'Skipping: project has been dormant %d days on the host: %s',
                                 delta.days, check_url)
                             raise SkipError
@@ -701,18 +703,18 @@ def main():
                 continue
 
             if not valid_proj:
-                logging.error('Skipping: project could not be found on host')
+                logger.error('Skipping: project could not be found on host')
                 time.sleep(args.delay)
                 continue
 
             # Do a basic existance check of each URL
             if not ex.check_url(url):
-                logging.error('Skipping: homepage URL is not reachable: %s', url)
+                logger.error('Skipping: homepage URL is not reachable: %s', url)
                 time.sleep(args.delay)
                 continue
 
             if not ex.check_url(src):
-                logging.warning('Source URL is not reachable (ignoring): %s', src)
+                logger.warning('Source URL is not reachable (ignoring): %s', src)
 
         proj = strip_project_prefix(proj, args.strip_project_prefix)
         newproject = ap.add_project(ProjectData(proj, pkg, url, src))

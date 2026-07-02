@@ -18,6 +18,8 @@ from urllib import parse
 
 from rmtools import netreq
 
+logger = logging.getLogger(__name__)
+
 JSON_DATA_TYPE = 'application/json'
 XML_DATA_TYPE = 'application/xml'
 HTML_DATA_TYPE = 'text/html'
@@ -189,7 +191,7 @@ def substitute_el_expression(text: str, props: dict[str, str]) -> str:
     def replace_property(regex) -> str:
         if regex.group(1) in props:
             return props[regex.group(1)]
-        logging.info('Parse error: cannot find property %s', regex.group(1))
+        logger.info('Parse error: cannot find property %s', regex.group(1))
         return ''
 
     return EL_EXPRESSION_RE.sub(replace_property, text)
@@ -330,7 +332,7 @@ def parse_savannah(html: str) -> Optional[ProjInfo]:
             last_modified = datetime.datetime.strptime(parser.date + '+0000',
                                                        '%a %d %b %Y %I:%M:%S %p UTC%z')
     except ValueError:
-        logging.warning('Unsupported date format %s', parser.date)
+        logger.warning('Unsupported date format %s', parser.date)
         last_modified = None
     urls = [url for url in parser.urls if url]
     return ProjInfo(status=status, last_modified=last_modified, urls=urls)
@@ -383,7 +385,7 @@ def parse_ocaml(html: str) -> Optional[ProjInfo]:
     try:
         last_modified = datetime.datetime.strptime(parser.date + '+0000', '%Y-%m-%d%z')
     except ValueError:
-        logging.warning('Unsupported date format %s', parser.date)
+        logger.warning('Unsupported date format %s', parser.date)
         last_modified = None
     urls = [url for url in parser.urls if url]
     return ProjInfo(status=status, last_modified=last_modified, urls=urls)
@@ -449,7 +451,7 @@ class HostingAPI:
         parts = path.split('/')
         # Sanity check URL
         if len(parts) < 3:
-            logging.warning('Unsupported repository URL %s', url)
+            logger.warning('Unsupported repository URL %s', url)
             return ('', '')
         return tuple(path.split('/')[1:3])
 
@@ -475,8 +477,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return None
 
         meta = json.loads(resp.text)
@@ -488,7 +490,7 @@ class HostingAPI:
             urls.append(meta['html_url'])
         if meta['fork']:
             # TODO: maybe this information should be put into ProjInfo instead
-            logging.info('Note: project is not original but a fork (%s)', url)
+            logger.info('Note: project is not original but a fork (%s)', url)
         return ProjInfo(
             status=status,
             last_modified=last_modified,
@@ -517,8 +519,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return []
         return [r['tag_name'] for r in json.loads(resp.text)]
 
@@ -545,8 +547,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return []
         return [r['name'] for r in json.loads(resp.text)]
 
@@ -579,8 +581,8 @@ class HostingAPI:
             try:
                 resp.raise_for_status()
             except netreq.HTTPError as e:
-                logging.info('Error retrieving data for %s (%s: %s)',
-                             url, e.response.status_code, e.response.reason)
+                logger.info('Error retrieving data for %s (%s: %s)',
+                            url, e.response.status_code, e.response.reason)
             else:
                 meta = json.loads(resp.text)
                 if desc := meta['description']:
@@ -605,8 +607,8 @@ class HostingAPI:
                     try:
                         resp.raise_for_status()
                     except netreq.HTTPError as e:
-                        logging.info('Error retrieving data for %s (%s: %s)',
-                                     url, e.response.status_code, e.response.reason)
+                        logger.info('Error retrieving data for %s (%s: %s)',
+                                    url, e.response.status_code, e.response.reason)
                     else:
                         inactive = json.loads(resp.text)
                         for found in inactive:
@@ -667,8 +669,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return []
 
         return [entry['name'] for entry in json.loads(resp.text)]
@@ -722,8 +724,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return None
 
         meta = json.loads(resp.text)
@@ -741,7 +743,7 @@ class HostingAPI:
             urls.append(meta['html_url'])
         if meta['fork']:
             # TODO: maybe this information should be put into ProjInfo instead
-            logging.info('Note: project is not original but a fork (%s)', url)
+            logger.info('Note: project is not original but a fork (%s)', url)
         return ProjInfo(
             status=status,
             last_modified=last_modified,
@@ -782,8 +784,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return []
 
         # Use tag_name if found (in releases only) otherwise name (in tags and releases)
@@ -842,8 +844,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return None
 
         meta = json.loads(resp.text)
@@ -897,8 +899,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return []
 
         return list(json.loads(resp.text)['tags'])
@@ -939,8 +941,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return None
         meta = json.loads(resp.text)
         info = meta['info']
@@ -987,8 +989,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return None
         info = json.loads(resp.text)['crate']
 
@@ -1019,8 +1021,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return None
         meta = json.loads(resp.text)
         info = meta['resources']
@@ -1051,8 +1053,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return None
         info = json.loads(resp.text)
 
@@ -1066,8 +1068,8 @@ class HostingAPI:
                 try:
                     resp.raise_for_status()
                 except netreq.HTTPError as e:
-                    logging.info('Error retrieving data for %s (%s: %s)',
-                                 url, e.response.status_code, e.response.reason)
+                    logger.info('Error retrieving data for %s (%s: %s)',
+                                url, e.response.status_code, e.response.reason)
                 else:
                     activities = json.loads(resp.text)
                     last_activity = None
@@ -1145,8 +1147,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return None
         info = json.loads(resp.text)
 
@@ -1205,8 +1207,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return None
         info = json.loads(resp.text)
         metadata = info['metadata']
@@ -1246,8 +1248,8 @@ class HostingAPI:
             try:
                 resp.raise_for_status()
             except netreq.HTTPError as e:
-                logging.info('Error retrieving data for %s (%s: %s)',
-                             url, e.response.status_code, e.response.reason)
+                logger.info('Error retrieving data for %s (%s: %s)',
+                            url, e.response.status_code, e.response.reason)
                 return None
             info = json.loads(resp.text)['response']
             if not info or info['numFound'] != 1:
@@ -1255,8 +1257,8 @@ class HostingAPI:
             pinfo = info['docs'][0]
             if pinfo['g'] != group or pinfo['a'] != artifact:
                 # The server has given us a result which we didn't ask for
-                logging.info('Mismatch in requested Maven group+artifact %s %s',
-                             pinfo['g'], pinfo['a'])
+                logger.info('Mismatch in requested Maven group+artifact %s %s',
+                            pinfo['g'], pinfo['a'])
                 return None
             version = pinfo['latestVersion']
             last_modified = datetime.datetime.fromtimestamp(int(pinfo['timestamp']) / 1000,
@@ -1271,8 +1273,8 @@ class HostingAPI:
             try:
                 resp.raise_for_status()
             except netreq.HTTPError as e:
-                logging.info('Error retrieving data for %s (%s: %s)',
-                             url, e.response.status_code, e.response.reason)
+                logger.info('Error retrieving data for %s (%s: %s)',
+                            url, e.response.status_code, e.response.reason)
                 return None
             # TODO: parse XML from /metadata/versioning/latest to get version
             # But this metadata source is sometimes out of date
@@ -1287,15 +1289,15 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return None
 
         # Step 3: return the metadata from POM
         try:
             urls = parse_pom(resp.text)
         except ET.ParseError:
-            logging.info('Could not parse POM file for %s:%s', group, artifact)
+            logger.info('Could not parse POM file for %s:%s', group, artifact)
             return None
 
         # TODO: find a better status
@@ -1326,8 +1328,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return None
         info = json.loads(resp.text)
         urls = [info.get('homepage_url', '')]
@@ -1339,8 +1341,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return None
 
         # Find the most recent date of all releases.
@@ -1377,8 +1379,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return None
         return parse_savannah(resp.text)
 
@@ -1416,8 +1418,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return None
         return parse_ocaml(resp.text)
 
@@ -1444,8 +1446,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return None
         info = json.loads(resp.text)
         homepage = info['homepage']
@@ -1480,8 +1482,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return None
         meta = json.loads(resp.text)
 
@@ -1499,8 +1501,8 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
-            logging.info('Error retrieving data for %s (%s: %s)',
-                         url, e.response.status_code, e.response.reason)
+            logger.info('Error retrieving data for %s (%s: %s)',
+                        url, e.response.status_code, e.response.reason)
             return None
         info = json.loads(resp.text)
 
@@ -1604,7 +1606,7 @@ class HostingAPI:
         # NOT https://www.gnu.org/software/coreutils/ (probably means screen scraping &
         # that link should be enough to disambiguate)
 
-        logging.debug('External requests not supported for %s', netloc)
+        logger.debug('External requests not supported for %s', netloc)
         return None
 
 

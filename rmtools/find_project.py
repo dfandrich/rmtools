@@ -11,6 +11,8 @@ from urllib import parse
 
 from rmtools import add_matching, rmapi
 
+logger = logging.getLogger(__name__)
+
 # Matches a download URL
 DOWNLOAD_ARCHIVE_MATCH_RE = re.compile(r'[^/]\.(tar|zip|lzh|rar|cab|tgz|tbz|txz|jar)(\.\w{1,5})?$')
 
@@ -92,19 +94,19 @@ def main():
         try:
             lineparts = shlex.split(l)
         except ValueError:
-            logging.warning('Invalid format line: %s', l)
+            logger.warning('Invalid format line: %s', l)
             continue
         if len(lineparts) < 3:
-            logging.warning('Not enough arguments in line: %s', l)
+            logger.warning('Not enough arguments in line: %s', l)
             continue
         if len(lineparts) > 4:
-            logging.warning('Too many arguments in line: %s', l)
+            logger.warning('Too many arguments in line: %s', l)
             continue
         # Project is ignored
         _, package = lineparts[:2]
         urls = set(lineparts[2:])
 
-        logging.info('Next package: %s', package)
+        logger.info('Next package: %s', package)
         # TODO: maybe load packages to skip dupes
 
         # Add canonical version of links
@@ -114,7 +116,7 @@ def main():
         urls = {url for url in urls if add_matching.is_valid_url(url)
                 and not is_download_url(url)}
         if not urls:
-            logging.info('No valid URLs given; skipping')
+            logger.info('No valid URLs given; skipping')
             continue
 
         # Look for matches in a particular ecosystem (later)
@@ -138,21 +140,21 @@ def main():
         urls.update({swap_scheme(url) for url in urls})
 
         # Keep matches deduped by ID
-        logging.debug('Checking these URLs: %s', ' '.join(urls))
+        logger.debug('Checking these URLs: %s', ' '.join(urls))
         matches = {}
         for url in urls:
             # TODO: cache this
             projects = rm.find_project_by_ecosystem(url)
             for project in projects:
-                logging.info('Found project %s', project['name'])
+                logger.info('Found project %s', project['name'])
                 matches[project['id']] = (project['name'], package, url)
 
         # Look for ecosystem matches
         # First, count the number of URLs case-insensitively
         ecourlcasematch = {u.lower() for u in ecomatches}
         if len(ecourlcasematch) > 1:
-            logging.debug('Too many (%d) ecosystem URLs found: %s',
-                          len(ecourlcasematch), ' '.join(u for u in ecomatches))
+            logger.debug('Too many (%d) ecosystem URLs found: %s',
+                         len(ecourlcasematch), ' '.join(u for u in ecomatches))
 
         elif len(ecourlcasematch) == 1:
             # Only one unique URL (case-insensitive) was found, but there might be more
@@ -163,13 +165,13 @@ def main():
             if eco_name:
                 projects = rm.find_project_by_name(eco_name[0], eco_name[1])
                 for project in projects:
-                    logging.info('Found ecosystem project %s', project['name'])
+                    logger.info('Found ecosystem project %s', project['name'])
                     matches[project['id']] = (project['name'], package, url)
 
         if len(matches) == 0:
-            logging.info('Nothing found for package %s URL', package)
+            logger.info('Nothing found for package %s URL', package)
         elif len(matches) > 1 and not args.allow_duplicates:
-            logging.info('Too many projects found for package %s', package)
+            logger.info('Too many projects found for package %s', package)
             matches = {}
 
         for match in matches.values():

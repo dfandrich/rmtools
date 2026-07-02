@@ -11,6 +11,8 @@ from urllib import parse
 
 from rmtools import argparsing, external, hostingapi, rmapi
 
+logger = logging.getLogger(__name__)
+
 # Match scheme
 MATCH_SCHEME_RE = re.compile(r'^[-+.a-zA-Z0-9]+:')
 
@@ -287,7 +289,7 @@ def compatible_ecosystems(url1: str, url2: str) -> bool:
         return False
     eco1 = url_ecosystem(url1)
     eco2 = url_ecosystem(url2)
-    logging.debug('Ecosystems %s and %s', eco1, eco2)
+    logger.debug('Ecosystems %s and %s', eco1, eco2)
     if eco1 == eco2:
         # The same ecosystem is compatible with itself, even if both are empty
         return True
@@ -373,27 +375,27 @@ class ExternalComparer:
         for proj in projects:
             eco_url = canonicalize_url(ecosystem_url(proj), strip_scheme=False)
             be_url = canonicalize_url(backend_url(proj), strip_scheme=False)
-            logging.debug('Ecosystem compare %s with %s & %s',
-                          canon_url, eco_url, be_url)
+            logger.debug('Ecosystem compare %s with %s & %s',
+                         canon_url, eco_url, be_url)
             if (compatible_ecosystems(canon_url, eco_url)
                     or compatible_ecosystems(canon_url, be_url)):
                 break
         else:
-            logging.info('Skipping external match check due to incompatible ecosystems')
+            logger.info('Skipping external match check due to incompatible ecosystems')
             return []
 
         if (url_ecosystem(canon_url)
                 and all(url_ecosystem(backend_url(proj)) for proj in projects)
                 and all(url_ecosystem(ecosystem_url(proj)) for proj in projects)):
-            logging.error('External matching not yet implemented for any url available')
+            logger.error('External matching not yet implemented for any url available')
             return []
 
         extinfo = self.hostapi.get_project_info(canon_url)
         exturls = frozenset(extinfo.urls) if extinfo else frozenset()
         if exturls:
-            logging.debug('Found external project links %s', ' '.join(exturls))
+            logger.debug('Found external project links %s', ' '.join(exturls))
         else:
-            logging.debug('No external project links found for %s', canon_url)
+            logger.debug('No external project links found for %s', canon_url)
 
         def check_all_links(check_url: str):
             """Check the given URL against all relevant ones."""
@@ -409,7 +411,7 @@ class ExternalComparer:
             # Now, get project links for the URL and check those against the main
             proj_info = self.hostapi.get_project_info(canonicalize_url(check_url))
             proj_urls = frozenset(proj_info.urls) if proj_info else frozenset()
-            logging.debug('Proj links %s', ' '.join(proj_urls))
+            logger.debug('Proj links %s', ' '.join(proj_urls))
             for proj_url in proj_urls:
                 if match_project_url(proj_url, url):
                     return True
@@ -421,8 +423,8 @@ class ExternalComparer:
 
         matches = []
         for proj in projects:
-            logging.debug('Matching project %s (%s) against %s %s',
-                          proj['name'], proj['id'], url, ' '.join(exturls))
+            logger.debug('Matching project %s (%s) against %s %s',
+                         proj['name'], proj['id'], url, ' '.join(exturls))
 
             if (check_all_links(proj['homepage'])
                 or check_all_links(ecosystem_url(proj))
@@ -516,7 +518,7 @@ def main():
         # Download existing entries
         existing = rm.get_distro_packages(args.distro) if args.existence_check else set()
 
-    logging.info('Found %d existing packages for distro %s', len(existing), args.distro)
+    logger.info('Found %d existing packages for distro %s', len(existing), args.distro)
 
     externalcomp = ExternalComparer(gh_token)
     redirectchk = external.ExternalAPI()
@@ -528,42 +530,42 @@ def main():
         try:
             lineparts = shlex.split(l)
         except ValueError:
-            logging.warning('Invalid format line: %s', l)
+            logger.warning('Invalid format line: %s', l)
             continue
         if len(lineparts) < 3:
-            logging.warning('Not enough arguments in line: %s', l)
+            logger.warning('Not enough arguments in line: %s', l)
             continue
         if len(lineparts) > 4:
-            logging.warning('Too many arguments in line: %s', l)
+            logger.warning('Too many arguments in line: %s', l)
             continue
         project, package = lineparts[:2]
         urls = lineparts[2:]
 
         if parse.urlparse(project).scheme:
-            logging.warning('Invalid project name (looks like URL): %s', project)
+            logger.warning('Invalid project name (looks like URL): %s', project)
             continue
 
         if parse.urlparse(package).scheme:
-            logging.warning('Invalid package name (looks like URL): %s', package)
+            logger.warning('Invalid package name (looks like URL): %s', package)
             continue
 
-        logging.info('Next project: %s', project)
+        logger.info('Next project: %s', project)
         if package in existing:
-            logging.info('Package %s already exists in a project; skipping', package)
+            logger.info('Package %s already exists in a project; skipping', package)
             continue
 
         urls = [url for url in urls if is_valid_url(url)]
         if not urls:
-            logging.info('No valid URLs given; skipping')
+            logger.info('No valid URLs given; skipping')
             continue
 
         projects = rm.find_project(project)
-        logging.debug('Found %d projects named %s', len(projects), project)
+        logger.debug('Found %d projects named %s', len(projects), project)
         # Find projects that match our URL
         for proj in projects:
-            logging.debug('Anitya links %s %s %s %s',
-                          proj['homepage'], valid_version_check_url(proj['version_url']),
-                          ecosystem_url(proj), backend_url(proj))
+            logger.debug('Anitya links %s %s %s %s',
+                         proj['homepage'], valid_version_check_url(proj['version_url']),
+                         ecosystem_url(proj), backend_url(proj))
         matches = [proj for proj in projects
                    for url in urls
                    if (match_project_url(proj['homepage'], url)
@@ -577,7 +579,7 @@ def main():
             for url in urls:
                 matches.extend(externalcomp.compare(url, projects))
                 if args.redirect_check and (redir := redirectchk.get_redirect(url)):
-                    logging.debug('Redirected to %s', redir)
+                    logger.debug('Redirected to %s', redir)
                     matches.extend(externalcomp.compare(redir, projects))
 
         # Dedupe matches, since more than one input URL could match
@@ -585,20 +587,20 @@ def main():
         if len(matchset) == 1:
             # One good match
             match = matches[0]
-            logging.debug('Found project %d matching ours', match['id'])
-            logging.info('Adding %s to project id %d', package, match['id'])
+            logger.debug('Found project %d matching ours', match['id'])
+            logger.info('Adding %s to project id %d', package, match['id'])
             rm.create_new_package(args.distro, project, package, match['ecosystem'])
             print(package)
             existing.add(package)
 
         elif len(matchset) > 1:
-            logging.info('Too many matches found for our %s', project)
+            logger.info('Too many matches found for our %s', project)
 
         elif projects:
-            logging.info('No matches found for our %s', project)
+            logger.info('No matches found for our %s', project)
 
         else:
-            logging.info('No matches found for %s', project)
+            logger.info('No matches found for %s', project)
 
         time.sleep(args.delay)
 

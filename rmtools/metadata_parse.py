@@ -12,6 +12,8 @@ from dataclasses import dataclass
 
 from rmtools import add_matching
 
+logger = logging.getLogger(__name__)
+
 # Match the package name from a full SRPM name
 PACKAGE_RE = re.compile(r'^(.*)(-[\w\.+~^]+-[\w\.]+\.(\w)+(\d+))(\.\w+)?\.src\.rpm$')
 
@@ -73,23 +75,23 @@ def main():
                     if project.url and project.package:
                         show_project()
                     else:
-                        logging.info('Missing URL or package for %s', project.project)
+                        logger.info('Missing URL or package for %s', project.project)
 
                     project = ProjectData()
                 project.project = strip_prefixes(value, args.strip_project_prefix)
 
             elif key == 'URL':
                 if not project.project:
-                    logging.error('Missing name before %s', key)
+                    logger.error('Missing name before %s', key)
                     continue
                 project.url = add_matching.canonicalize_url(value, strip_scheme=False)
 
             elif key in frozenset({'Source RPM', 'Source'}):
                 if not project.project:
-                    logging.error('Missing name before %s', key)
+                    logger.error('Missing name before %s', key)
                     continue
                 if not (p := PACKAGE_RE.search(value)):
-                    logging.error('Bad SRPM %s for %s', value, project.project)
+                    logger.error('Bad SRPM %s for %s', value, project.project)
                     return
                 project.package = p.group(1)
 
@@ -97,7 +99,7 @@ def main():
         if project.url and project.package:
             show_project()
         else:
-            logging.info('Missing URL or package for %s', project.project)
+            logger.info('Missing URL or package for %s', project.project)
 
 
 if __name__ == '__main__':

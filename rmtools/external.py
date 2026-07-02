@@ -10,6 +10,8 @@ from urllib import parse
 
 from rmtools import netreq
 
+logger = logging.getLogger(__name__)
+
 # Regex to parse the http-equiv=refresh content
 REFRESH_RE = re.compile(r'^\s*\d+\s*;\s*url\s*=\s*(.*?)\s*$')
 
@@ -41,7 +43,7 @@ class RefreshParser(html.parser.HTMLParser):
             attr_dict = dict(attrs)
             if attr_dict.get('http-equiv', '').lower() == 'refresh' and 'content' in attr_dict:
                 self.url = parse_refresh_url(attr_dict['content'])
-                logging.debug('Redirected to %s', self.url)
+                logger.debug('Redirected to %s', self.url)
 
     def handle_endtag(self, tag: str):
         if tag == 'head':
@@ -87,7 +89,7 @@ class ExternalAPI:
                 # If the page looks small, it might contain a meta refresh so get it and see
                 with contextlib.suppress(KeyError, ValueError):
                     if int(resp.headers['content-length']) <= REFRESH_SIZE_MAX:
-                        logging.debug('Downloading page to look for a refresh tag')
+                        logger.debug('Downloading page to look for a refresh tag')
                         # Retrieve the whole page and parse it
                         resp = self.req.get(url, headers=headers, allow_redirects=False,
                                             timeout=netreq.TIMEOUT)
@@ -99,7 +101,7 @@ class ExternalAPI:
                             return parse.urljoin(url, location)
                 return ''
 
-            logging.debug('Redirect check returned unexpected %d', resp.status_code)
+            logger.debug('Redirect check returned unexpected %d', resp.status_code)
 
         return ''
 

@@ -10,6 +10,8 @@ from typing import Any, Optional
 
 from rmtools import netreq
 
+logger = logging.getLogger(__name__)
+
 # The base URL for API requests
 BASE_URL = 'https://release-monitoring.org/api/v2/'
 
@@ -48,7 +50,7 @@ class RMApi:
         items = []
         page = 1
         while page < MAX_PAGE_FAILSAFE:
-            logging.debug('Requesting %s page %d', path, page)
+            logger.debug('Requesting %s page %d', path, page)
             resp = self.req.get(BASE_URL + path + '/',
                                 headers=self.headers, params=params
                                 | {'items_per_page': NUM_PER_PAGE, 'page': page},
@@ -63,7 +65,7 @@ class RMApi:
                 break
             page = page + 1
         if r['total_items'] != len(items):
-            logging.info('Wanted %d, got %d', r['total_items'], len(items))
+            logger.info('Wanted %d, got %d', r['total_items'], len(items))
         return items
 
     def get_distro_package_info(self, distro: str, package: str) -> Optional[dict[str, Any]]:
@@ -114,7 +116,7 @@ class RMApi:
                            project_ecosystem: str):
         """Creates a new package for a given project."""
         if self.dry_run:
-            logging.info('Skipping create_new_package in dry run mode')
+            logger.info('Skipping create_new_package in dry run mode')
             return
 
         headers = {'Content-Type': 'application/json'}
@@ -133,7 +135,7 @@ class RMApi:
                            versionfilt: str):
         """Creates a new package for a given project."""
         if self.dry_run:
-            logging.info('Skipping create_new_project in dry run mode')
+            logger.info('Skipping create_new_project in dry run mode')
             return
 
         headers = {'Content-Type': 'application/json'}
@@ -154,7 +156,7 @@ class RMApi:
     def scan_project_versions(self, project_name: str, url: str, releases_only: bool):
         """Triggers a scan for new versions for a given project."""
         if self.dry_run:
-            logging.info('Skipping scan_project_versions in dry run mode')
+            logger.info('Skipping scan_project_versions in dry run mode')
             return
 
         headers = {'Content-Type': 'application/json'}
