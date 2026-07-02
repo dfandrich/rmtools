@@ -206,7 +206,7 @@ def parse_pom(xml: str) -> list[str]:
 
     # Load the properties needed for ${...} template substitution
     # Some additional properties are added below from common tags
-    properties = {}  # type: dict[str, str]
+    properties: dict[str, str] = {}
     if (props := root.find('x:properties', ns)) is not None:
         for prop in props:
             key = strip_xmlns(prop.tag)
@@ -214,7 +214,7 @@ def parse_pom(xml: str) -> list[str]:
                 properties[key] = prop.text
 
     # Get the URLs we are here for
-    rawurls = []  # type: list[str]
+    rawurls: list[str] = []
     if (tag := root.find('x:url', ns)) is not None:
         rawurls.append(tag.text)
         properties['project.url'] = tag.text
@@ -395,7 +395,7 @@ def get_pagure_repo(url: str) -> str:
     Since it can be a two level name, use heuristics to try to figure out which one it is.
     Unfortunately, it may not be perfect.
     """
-    scheme, netloc, path, query, fragment = parse.urlsplit(url)
+    _scheme, netloc, path, _query, _fragment = parse.urlsplit(url)
     parts = path.split('/')
 
     # Empty
@@ -445,7 +445,7 @@ class HostingAPI:
         This extracts them only from the source repository URL.  This currently supports GitHub
         URLs and others with a similar format (like GitLab).
         """
-        scheme, netloc, path, query, fragment = parse.urlsplit(url)
+        _scheme, _netloc, path, _query, _fragment = parse.urlsplit(url)
         parts = path.split('/')
         # Sanity check URL
         if len(parts) < 3:
@@ -852,7 +852,7 @@ class HostingAPI:
         last_modified = datetime.datetime.fromtimestamp(int(meta['date_modified']),
                                                         tz=datetime.timezone.utc)
         # TODO: A project can set a URL, but there doesn't seem to be a way to get it via the API
-        urls = []  # type: list[str]
+        urls: list[str] = []
         return ProjInfo(
             status=status,
             last_modified=last_modified,
@@ -1449,9 +1449,7 @@ class HostingAPI:
             return None
         info = json.loads(resp.text)
         homepage = info['homepage']
-        repo = info.get('repository', {}).get('url')
-        if repo.endswith('.git'):
-            repo = repo[:-4]
+        repo = info.get('repository', {}).get('url').removesuffix('.git')
         urls = [homepage, repo]
 
         # TODO: find a better status
@@ -1584,7 +1582,7 @@ class HostingAPI:
         if netloc == 'opam.ocaml.org':
             return self.get_ocaml_info(url)
 
-        if netloc.endswith('.readthedocs.org') or netloc.endswith('.readthedocs.io'):
+        if netloc.endswith(('.readthedocs.org', '.readthedocs.io')):
             return self.get_readthedocs_info(url)
 
         if netloc == 'code.google.com':

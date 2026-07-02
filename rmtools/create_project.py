@@ -237,7 +237,7 @@ class AddProject:
         # Until we figure that out, only support URLs that are obviously two-part projects and
         # fail others.
 
-        owner, repo = parts[1:3]
+        _owner, repo = parts[1:3]
         version_url = add_matching.canonicalize_url(project.source, strip_scheme=False)
 
         # Anitya does not support gitlab.com releases yet, so there is no point in
@@ -380,7 +380,7 @@ class AddProject:
             logging.warning('Bad Forgejo URL %s', project.source)
             return None
 
-        owner, repo = parts[1:3]
+        _owner, repo = parts[1:3]
 
         if srcurl.netloc == 'codeberg.org':
             releases = self.host.get_codeberg_releases(project.source)
@@ -518,6 +518,7 @@ class AddProject:
         if srcurl.netloc == 'github.com':
             return self.add_project_github(project)
 
+        # TODO: support other gitlab instances as well
         if srcurl.netloc == 'gitlab.com':
             return self.add_project_gitlab_com(project)
 

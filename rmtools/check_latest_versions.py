@@ -39,7 +39,7 @@ class PersistentVersions:
         versions: dict[tuple, str]
 
     def __init__(self):
-        self.data = None  # type: Optional[self.PersistentVersionsData]
+        self.data: Optional[self.PersistentVersionsData] = None
 
     def set_vers(self, vers_dict: dict[tuple, str]):
         """Set new versions to persist."""
@@ -93,14 +93,14 @@ def load_config() -> Optional[dict[str, Any]]:
 def check_packages(rm: rmapi.RMApi, packages: dict[str, list[str]], unstable: bool) -> list[Ver]:
     """Check all the package versions at release-monitoring.org."""
     vers = []
-    for distro in packages:
-        for package in packages[distro]:
+    for distro, value in packages.items():
+        for package in value:
             logging.info('Retrieving version for %s', package)
             try:
                 info = rm.get_distro_package_info(distro, package)
-            except:  # noqa: E722, PIE786
-                logging.error('Error retrieving package info for "%s" in distro "%s"',
-                              package, distro, exc_info=True)
+            except Exception:  # noqa: PIE786
+                logging.exception('Error retrieving package info for "%s" in distro "%s"',
+                                  package, distro)
             else:
                 if info:
                     ver = info['version' if unstable else 'stable_version']

@@ -93,3 +93,6 @@ ignore = ["W503", "E741", "E501", "D102", "D103", "D107", "B001", "IFS001", "NQA
 max-line-length = 100
 docstring-convention = "google"
 blanks-before-imports = 1
+
+[tool.ruff]
+lint.ignore = ["I001", "E741"]
