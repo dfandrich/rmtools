@@ -92,7 +92,7 @@ def main():
                     continue
                 if not (p := PACKAGE_RE.search(value)):
                     logger.error('Bad SRPM %s for %s', value, project.project)
-                    return
+                    continue
                 project.package = p.group(1)
 
     if project.project:
