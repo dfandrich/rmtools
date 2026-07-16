@@ -44,7 +44,7 @@ class TestStripXmlns(unittest.TestCase):
 
         ]:
             with self.subTest(tag=tag, stripped=stripped):
-                self.assertEqual(hostingapi.strip_xmlns(tag), stripped)
+                self.assertEqual(stripped, hostingapi.strip_xmlns(tag))
 
 
 class TestParseIso8601(unittest.TestCase):
@@ -63,7 +63,7 @@ class TestParseIso8601(unittest.TestCase):
                                tzinfo=datetime.timezone(datetime.timedelta(seconds=3600))))
         ]:
             with self.subTest(text=text, stamp=stamp):
-                self.assertEqual(hostingapi.parse_iso8601(text), stamp)
+                self.assertEqual(stamp, hostingapi.parse_iso8601(text))
 
 
 class TestSubstituteElExpression(unittest.TestCase):
@@ -84,7 +84,7 @@ class TestSubstituteElExpression(unittest.TestCase):
             ('Not to subst ${a', 'Not to subst ${a'),
         ]:
             with self.subTest(text=text, substituted=substituted):
-                self.assertEqual(hostingapi.substitute_el_expression(text, props), substituted)
+                self.assertEqual(substituted, hostingapi.substitute_el_expression(text, props))
 
 
 class TestExtractLink(unittest.TestCase):
@@ -99,7 +99,7 @@ class TestExtractLink(unittest.TestCase):
             ('Multiple http://short.example/ and https://another.example/', 'http://short.example/'),
         ]:
             with self.subTest(text=text):
-                self.assertEqual(hostingapi.extract_link(text), link)
+                self.assertEqual(link, hostingapi.extract_link(text))
 
 
 class TestGetGenericProjectName(unittest.TestCase):
@@ -138,7 +138,7 @@ class TestGetPagureRepo(unittest.TestCase):
             ('golist', 'https://pagure.io/golist/blob/master/f/README.md')
         ]:
             with self.subTest(repo=repo, url=url):
-                self.assertEqual(hostingapi.get_pagure_repo(url), repo)
+                self.assertEqual(repo, hostingapi.get_pagure_repo(url))
 
     def test_get_pagure_repo_none(self):
         for url in [
@@ -146,7 +146,7 @@ class TestGetPagureRepo(unittest.TestCase):
             'https://pagure.io/api/0/project',
         ]:
             with self.subTest(url=url):
-                self.assertEqual(hostingapi.get_pagure_repo(url), '')
+                self.assertEqual('', hostingapi.get_pagure_repo(url))
 
 
 class TestParsePom(unittest.TestCase):
@@ -184,9 +184,9 @@ class TestParsePom(unittest.TestCase):
             </project>
         """)
         self.assertCountEqual(
-            hostingapi.parse_pom(content),
             ['https://github.com/example/example/',
-             'https://www.example.com/rmtools/v1.2.3/art/xyzzy?enc=UTF-8'])
+             'https://www.example.com/rmtools/v1.2.3/art/xyzzy?enc=UTF-8'],
+            hostingapi.parse_pom(content))
 
 
 class TestParseSavannah(unittest.TestCase):
@@ -210,7 +210,7 @@ class TestParseSavannah(unittest.TestCase):
             status=hostingapi.ProjInfo.ProjStatus.UNKNOWN,
             last_modified=datetime.datetime.fromtimestamp(1265927340, tz=datetime.timezone.utc),
             urls=['http://example.com/prjhome'])
-        self.assertEqual(hostingapi.parse_savannah(content), expected)
+        self.assertEqual(expected, hostingapi.parse_savannah(content))
 
 
 class TestParseOcaml(unittest.TestCase):
@@ -229,4 +229,4 @@ class TestParseOcaml(unittest.TestCase):
             status=hostingapi.ProjInfo.ProjStatus.UNKNOWN,
             last_modified=datetime.datetime.fromtimestamp(1698796800, tz=datetime.timezone.utc),
             urls=['http://home.example.com/', 'http://home.example.com/code.tgz'])
-        self.assertEqual(hostingapi.parse_ocaml(content), expected)
+        self.assertEqual(expected, hostingapi.parse_ocaml(content))

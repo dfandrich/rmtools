@@ -22,8 +22,8 @@ class TestLoadConfig(unittest.TestCase):
         """)
         with (mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': '/some/unique/path'}),
               mock.patch('builtins.open', mock.mock_open(read_data=content)) as mock_file):
-            self.assertDictEqual(check_latest_versions.load_config(),
-                                 {'check_packages': {'Distro': ['pkg1']}})
+            self.assertDictEqual({'check_packages': {'Distro': ['pkg1']}},
+                                 check_latest_versions.load_config())
             mock_file.assert_called_with('/some/unique/path/rmcheck.yaml')
 
     def test_load_config_home(self):
@@ -34,8 +34,8 @@ class TestLoadConfig(unittest.TestCase):
         """)
         with (mock.patch.dict(os.environ, {'HOME': '/not/a/real/homedir'}, clear=True),
               mock.patch('builtins.open', mock.mock_open(read_data=content)) as mock_file):
-            self.assertDictEqual(check_latest_versions.load_config(),
-                                 {'check_packages': {'Distro': ['pkg1']}})
+            self.assertDictEqual({'check_packages': {'Distro': ['pkg1']}},
+                                 check_latest_versions.load_config())
             mock_file.assert_called_with('/not/a/real/homedir/.config/rmcheck.yaml')
 
     def test_load_config_none(self):
@@ -62,28 +62,28 @@ class TestPersistentVersions(unittest.TestCase):
 
     def test_persistent_dir(self):
         pv = check_latest_versions.PersistentVersions()
-        self.assertEqual(pv.persistent_dir(), self.tempdir)
+        self.assertEqual(self.tempdir, pv.persistent_dir())
 
     @mock.patch.dict(os.environ, {'HOME': '/a/very/strange/path'}, clear=True)
     def test_persistent_dir_home(self):
         pv = check_latest_versions.PersistentVersions()
-        self.assertEqual(pv.persistent_dir(), '/a/very/strange/path/.local/share')
+        self.assertEqual('/a/very/strange/path/.local/share', pv.persistent_dir())
 
     @mock.patch.dict(os.environ, clear=True)
     def test_persistent_dir_default(self):
         pv = check_latest_versions.PersistentVersions()
-        self.assertEqual(pv.persistent_dir(), '.')
+        self.assertEqual('.', pv.persistent_dir())
 
     def test_no_data_file(self):
         pv = check_latest_versions.PersistentVersions()
         pv.load()
-        self.assertIs(pv.data, None)
+        self.assertIsNone(pv.data)
 
     def test_save_load_data_file(self):
         pv = check_latest_versions.PersistentVersions()
         pv.load()
         # Abort if any data is found since that risks accidentally overwriting user data
-        self.assertIs(pv.data, None)
+        self.assertIsNone(pv.data)
         vers = {('pypi', 'pymodule', False): '1.2.3',
                 ('https://example.com/xyzzy', 'xyzzy', True): '0'}
         pv.set_vers(vers)
@@ -94,8 +94,8 @@ class TestPersistentVersions(unittest.TestCase):
         pv.load()
         verdata = pv.get()
         assert verdata
-        self.assertDictEqual(verdata.versions, vers)
-        self.assertAlmostEqual(verdata.check_time, time.time(), delta=10)
+        self.assertDictEqual(vers, verdata.versions)
+        self.assertAlmostEqual(time.time(), verdata.check_time, delta=10)
 
 
 class TestMakeKey(unittest.TestCase):

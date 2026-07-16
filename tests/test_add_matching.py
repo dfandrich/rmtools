@@ -163,7 +163,7 @@ class TestCanonicalize(unittest.TestCase):
             ('', ''),
         ]:
             with self.subTest(url=url, canon=canon):
-                self.assertEqual(add_matching.canonicalize_url(url), canon)
+                self.assertEqual(canon, add_matching.canonicalize_url(url))
 
     def test_canonicalize_url_nostrip(self):
         for url, canon in [
@@ -179,7 +179,7 @@ class TestCanonicalize(unittest.TestCase):
             ('', ''),
         ]:
             with self.subTest(url=url, canon=canon):
-                self.assertEqual(add_matching.canonicalize_url(url, strip_scheme=False), canon)
+                self.assertEqual(canon, add_matching.canonicalize_url(url, strip_scheme=False))
 
 
 class TestMatchProjectUrl(unittest.TestCase):
