@@ -417,7 +417,7 @@ def get_pagure_repo(url: str) -> str:
 
     # Possibly Two levels
     # If the second level is a magic name, it's actually just one level
-    if parts[2] in frozenset({'archive', 'blame', 'blob', 'boards', 'branches', 'c' 'commits',
+    if parts[2] in frozenset({'archive', 'blame', 'blob', 'boards', 'branches', 'c', 'commits',
                               'forks', 'history', 'issue', 'issues', 'pull-request',
                               'pull-requests', 'raw', 'releases', 'roadmap', 'stats', 'tree'}):
         return parts[1]

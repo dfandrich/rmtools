@@ -28,8 +28,8 @@ class TestIsDownloadUrl(unittest.TestCase):
     def test_is_download_url(self):
         for url in [
             'https://example.com/xyzzy.tar',
-            'http://rubygems.invalid/foo/bar/baz.txz'
-            'http://www.example.org/downloads/some_file-123.tar.gz'
+            'http://rubygems.invalid/foo/bar/baz.txz',
+            'http://www.example.org/downloads/some_file-123.tar.gz',
             'ftp://example.com/pub/z.zip',
             'https://notmaven.org/maven2/testing.jar',
         ]:
@@ -39,8 +39,8 @@ class TestIsDownloadUrl(unittest.TestCase):
     def test_is_download_url_not(self):
         for url in [
             'https://example.com/xyzzy/',
-            'http://rubygems.invalid/'
-            'http://www.example.org/downloads/some_unknown-123.bin'
+            'http://rubygems.invalid/',
+            'http://www.example.org/downloads/some_unknown-123.bin',
             'ftp://example.com/pub/unzip',
         ]:
             with self.subTest(url=url):
