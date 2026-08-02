@@ -22,8 +22,11 @@ class TestLoadConfig(unittest.TestCase):
         """)
         with (mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': '/some/unique/path'}),
               mock.patch('builtins.open', mock.mock_open(read_data=content)) as mock_file):
-            self.assertDictEqual({'check_packages': {'Distro': ['pkg1']}},
-                                 check_latest_versions.load_config())
+
+            cfg = check_latest_versions.load_config()
+
+            self.assertIsNotNone(cfg)
+            self.assertDictEqual({'check_packages': {'Distro': ['pkg1']}}, cfg)
             mock_file.assert_called_with('/some/unique/path/rmcheck.yaml')
 
     def test_load_config_home(self):
@@ -34,8 +37,11 @@ class TestLoadConfig(unittest.TestCase):
         """)
         with (mock.patch.dict(os.environ, {'HOME': '/not/a/real/homedir'}, clear=True),
               mock.patch('builtins.open', mock.mock_open(read_data=content)) as mock_file):
-            self.assertDictEqual({'check_packages': {'Distro': ['pkg1']}},
-                                 check_latest_versions.load_config())
+
+            cfg = check_latest_versions.load_config()
+
+            self.assertIsNotNone(cfg)
+            self.assertDictEqual({'check_packages': {'Distro': ['pkg1']}}, cfg)
             mock_file.assert_called_with('/not/a/real/homedir/.config/rmcheck.yaml')
 
     def test_load_config_none(self):
