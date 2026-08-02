@@ -135,7 +135,7 @@ def main() -> int:
     logging.basicConfig(format='%(filename)s: %(message)s', level=level)
 
     conf = load_config()
-    if not conf:
+    if conf is None:
         logger.fatal('Configuration file could not be read')
         return 1
 
@@ -156,8 +156,7 @@ def main() -> int:
                     datetime.datetime.ctime(prev_date), delta.total_seconds() / 3600)
 
     rm = rmapi.RMApi()
-    if 'check_packages' in conf:
-        vers = check_packages(rm, conf['check_packages'], False)
+    vers = check_packages(rm, conf.get('check_packages', {}), False)
 
     # TODO: ecosystem in each entry is NOT (necessarily) the homepage; for
     # projects out of an ecosystem, it's an internal identifier
@@ -166,9 +165,8 @@ def main() -> int:
     # project that will be displayed.
     allvers = vers
 
-    if 'check_packages_unstable' in conf:
-        vers = check_packages(rm, conf['check_packages_unstable'], True)
-        allvers.extend(vers)
+    vers = check_packages(rm, conf.get('check_packages_unstable', {}), True)
+    allvers.extend(vers)
 
     vers_dict = {make_key(ver): ver.version for ver in allvers}
     if previous:
