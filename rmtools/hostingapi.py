@@ -465,7 +465,7 @@ class HostingAPI:
         if len(parts) < 3:
             logger.warning('Unsupported repository URL %s', url)
             return ('', '')
-        return tuple(path.split('/')[1:3])
+        return parts[1], parts[2]
 
     def get_gh_info(self, url: str) -> ProjInfo | None:
         """Retrieves interesting metadata about a Github project.
