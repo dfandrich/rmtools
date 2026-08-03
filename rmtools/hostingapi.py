@@ -62,7 +62,7 @@ MAVEN_BASE_URL = MAVEN_API_URL + '/{group_hier}/{artifact}/maven-metadata.xml'
 MAVEN_POM_URL = MAVEN_API_URL + '/{group_hier}/{artifact}/{version}/{artifact}-{version}.pom'
 MAVEN_SEARCH_BASE_URL = 'https://search.maven.org/solrsearch'
 MAVEN_SEARCH_URL = MAVEN_SEARCH_BASE_URL + '/select?q=g:{group}%20AND%20a:{artifact}&rows=9&wt=json'
-MAVEN_USE_SEARCH = True
+MAVEN_USE_SEARCH = True  # True to use the slower API but with seemingly more recent data
 
 # See https://docs.gitlab.com/api/rest/
 GITLAB_API_URL = 'https://gitlab.com/api/v4'
@@ -236,6 +236,17 @@ def parse_pom(xml: str) -> list[str]:
 
     # Template substitution on all URLs
     return [substitute_el_expression(url, properties) for url in rawurls]
+
+
+def parse_maven_metadata(xml: str) -> tuple[str, datetime.datetime | None]:
+    """Parse a Maven metadata file to extract useful info."""
+    root = ET.fromstring(xml)
+    lastup = root.find('versioning/lastUpdated')
+    lastdt = (datetime.datetime.strptime(lastup.text, '%Y%m%d%H%M%S')
+              .replace(tzinfo=datetime.timezone.utc)) if lastup else None
+    vers = root.find('versioning/versions')
+    lastver = vers[-1].text if vers else ''
+    return lastver, lastdt
 
 
 def extract_link(text: str) -> str:
@@ -1277,11 +1288,12 @@ class HostingAPI:
                 logger.info('Error retrieving data for %s (%s: %s)',
                             url, e.response.status_code, e.response.reason)
                 return None
-            # TODO: parse XML from /metadata/versioning/latest to get version
-            # But this metadata source is sometimes out of date
-            # version = ???
-            # TODO: get timestamp from somewhere
-            # last_modified = ???
+
+            try:
+                version, last_modified = parse_maven_metadata(resp.text)
+            except ET.ParseError:
+                logger.info('Could not parse metadata file for %s:%s', group, artifact)
+                return None
 
         # Step 2: get the POM metadata
         resp = self.req.get(MAVEN_POM_URL.format(group_hier=group_path, artifact=artifact,
