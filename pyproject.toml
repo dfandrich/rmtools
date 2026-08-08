@@ -61,6 +61,7 @@ dev = [
     "flake8-super",
     "flake8-warnings",
     "flake8-wot",
+    "pyrefly",
     "pytype >= 2023.9.19, <= 2024.10.11"
 ]
 
@@ -89,3 +90,11 @@ blanks-before-imports = 1
 
 [tool.ruff]
 lint.ignore = ["I001", "E741"]
+
+[tool.pyrefly]
+project-includes = [
+    "**/*.py*",
+    "**/*.ipynb",
+]
+preset = "basic"
+check-unannotated-defs = true
