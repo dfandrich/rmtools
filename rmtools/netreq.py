@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import requests
+import requests.adapters
 # For use by callers
 from requests import exceptions  # noqa: F401
 
