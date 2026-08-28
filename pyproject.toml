@@ -90,6 +90,7 @@ blanks-before-imports = 1
 
 [tool.ruff]
 lint.ignore = ["I001", "E741"]
+lint.external = ["PIE786"]
 
 [tool.pyrefly]
 project-includes = [

@@ -139,9 +139,9 @@ class AddProject:
                  versionfilt: list[str] | None = None):
         self.rm = rm
         self.host = host
-        self.prefixes = prefixes if prefixes else []
-        self.prerelfilt = prerelfilt if prerelfilt else []
-        self.versionfilt = versionfilt if versionfilt else []
+        self.prefixes = prefixes or []
+        self.prerelfilt = prerelfilt or []
+        self.versionfilt = versionfilt or []
         self.versionfiltstr = ';'.join(self.versionfilt)
         self.skip_tag_check = skip_tag_check
 
@@ -193,8 +193,8 @@ class AddProject:
         prefix = find_version_prefix(releases, prefixes)
         if prefix is None:
             logger.warning('Skipping %s due to questionable release tags', project.project)
-            logger.debug('Remaining Tags: %s', repr(releases))
-            logger.debug('Original tags: %s', repr(orig_releases))
+            logger.debug('Remaining Tags: %s', releases)
+            logger.debug('Original tags: %s', orig_releases)
             logger.debug('Using prerelease filters %s', prerelease)
             if not self.skip_tag_check:
                 return None
@@ -268,8 +268,8 @@ class AddProject:
         prefix = find_version_prefix(releases, prefixes)
         if prefix is None:
             logger.warning('Skipping %s due to questionable release tags', project.project)
-            logger.debug('Remaining Tags: %s', repr(releases))
-            logger.debug('Original tags: %s', repr(orig_releases))
+            logger.debug('Remaining Tags: %s', releases)
+            logger.debug('Original tags: %s', orig_releases)
             logger.debug('Using prerelease filters %s', prerelease)
             if not self.skip_tag_check:
                 return None
@@ -351,8 +351,8 @@ class AddProject:
         prefix = find_version_prefix(tags, prefixes)
         if prefix is None:
             logger.warning('Skipping %s due to questionable release tags', project.project)
-            logger.debug('Remaining Tags: %s', repr(tags))
-            logger.debug('Original tags: %s', repr(orig_tags))
+            logger.debug('Remaining Tags: %s', tags)
+            logger.debug('Original tags: %s', orig_tags)
             logger.debug('Using prerelease filters %s', prerelease)
             if not self.skip_tag_check:
                 return None
@@ -423,8 +423,8 @@ class AddProject:
         prefix = find_version_prefix(releases, prefixes)
         if prefix is None:
             logger.warning('Skipping %s due to questionable release tags', project.project)
-            logger.debug('Remaining Tags: %s', repr(releases))
-            logger.debug('Original tags: %s', repr(orig_releases))
+            logger.debug('Remaining Tags: %s', releases)
+            logger.debug('Original tags: %s', orig_releases)
             logger.debug('Using prerelease filters %s', prerelease)
             if not self.skip_tag_check:
                 return None

@@ -145,11 +145,11 @@ class RMApi:
             'name': project_name,
             'homepage': url,
             'backend': backend,
-            'version_url': version_url if version_url else None,
+            'version_url': version_url or None,
             'version_scheme': 'RPM',
-            'version_prefix': version_prefix if version_prefix else None,
-            'pre_release_filter': prerelease if prerelease else None,
-            'version_filter': versionfilt if versionfilt else None,
+            'version_prefix': version_prefix or None,
+            'pre_release_filter': prerelease or None,
+            'version_filter': versionfilt or None,
         }
         resp = self.req.post(BASE_URL + 'projects/', headers=self.headers | headers,
                              data=json.dumps(data), timeout=netreq.TIMEOUT)
