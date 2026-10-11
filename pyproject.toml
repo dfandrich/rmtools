@@ -89,7 +89,7 @@ docstring-convention = "google"
 blanks-before-imports = 1
 
 [tool.ruff]
-lint.ignore = ["I001", "E741"]
+lint.ignore = ["I001"]
 lint.external = ["PIE786"]
 
 [tool.pyrefly]
@@ -97,5 +97,5 @@ project-includes = [
     "**/*.py*",
     "**/*.ipynb",
 ]
-preset = "basic"
+preset = "default"
 check-unannotated-defs = true
