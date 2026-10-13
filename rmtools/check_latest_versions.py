@@ -43,11 +43,11 @@ class PersistentVersions:
         versions: dict[tuple, str]
 
     def __init__(self):
-        self.data: self.PersistentVersionsData | None = None
+        self.data: PersistentVersions.PersistentVersionsData | None = None
 
     def set_vers(self, vers_dict: dict[tuple, str]):
         """Set new versions to persist."""
-        self.data = self.PersistentVersionsData(
+        self.data = PersistentVersions.PersistentVersionsData(
             1, datetime.datetime.now(tz=datetime.timezone.utc).timestamp(), vers_dict)
 
     def get(self) -> PersistentVersionsData | None:
