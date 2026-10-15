@@ -99,3 +99,4 @@ project-includes = [
 ]
 preset = "default"
 check-unannotated-defs = true
+min-severity = "warn"

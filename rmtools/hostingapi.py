@@ -243,7 +243,7 @@ def parse_maven_metadata(xml: str) -> tuple[str, datetime.datetime | None]:
     root = ET.fromstring(xml)
     lastup = root.find('versioning/lastUpdated')
     lastdt = (datetime.datetime.strptime(lastup.text, '%Y%m%d%H%M%S')
-              .replace(tzinfo=datetime.timezone.utc)) if lastup and lastup.text else None
+              .replace(tzinfo=datetime.timezone.utc)) if lastup is not None and lastup.text else None
     vers = root.find('versioning/versions')
     lastver = vers[-1].text or '' if vers else ''
     return lastver, lastdt
