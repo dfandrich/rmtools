@@ -189,6 +189,33 @@ class TestParsePom(unittest.TestCase):
             hostingapi.parse_pom(content))
 
 
+class TestParseMavenMetadata(unittest.TestCase):
+    """Test parse_maven_metadata."""
+
+    def test_parse_maven_metadata(self):
+        content = textwrap.dedent(r"""<?xml version="1.0" encoding="UTF-8"?>
+            <metadata>
+              <groupId>org.example.ex</groupId>
+              <artifactId>ex-java-example</artifactId>
+              <versioning>
+                <latest>4.2.e4j.1</latest>
+                <release>4.2.e4j.1</release>
+                <versions>
+                  <version>3.7.e4j.1</version>
+                  <version>3.11.1.e4j.1</version>
+                  <version>4.0.e4j.2</version>
+                  <version>4.0.e4j.1</version>
+                  <version>4.2.e4j.1</version>
+                </versions>
+                <lastUpdated>20251125130538</lastUpdated>
+              </versioning>
+            </metadata>
+        """)
+        self.assertEqual(
+            ('4.2.e4j.1', datetime.datetime.fromtimestamp(1764075938, tz=datetime.timezone.utc)),
+            hostingapi.parse_maven_metadata(content))
+
+
 class TestParseSavannah(unittest.TestCase):
     """Test parse_savannah."""
 
@@ -230,3 +257,11 @@ class TestParseOcaml(unittest.TestCase):
             last_modified=datetime.datetime.fromtimestamp(1698796800, tz=datetime.timezone.utc),
             urls=['http://home.example.com/', 'http://home.example.com/code.tgz'])
         self.assertEqual(expected, hostingapi.parse_ocaml(content))
+
+
+class TestHostingAPI(unittest.TestCase):
+    """Test HostingAPI without any network traffic."""
+
+    def test_hosting_api_unsupported(self):
+        hapi = hostingapi.HostingAPI(None)
+        self.assertIsNone(hapi.get_project_info('https://example.com/unsupported/project/site'))

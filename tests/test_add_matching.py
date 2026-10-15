@@ -315,3 +315,24 @@ class TestValidVersionCheckUrl(unittest.TestCase):
         ]:
             with self.subTest(url=url):
                 self.assertFalse(add_matching.valid_version_check_url(url))
+
+
+class TestExternalComparer(unittest.TestCase):
+    """Test ExternalComparer without any network traffic."""
+
+    def test_compare_incompatible_ecosystems(self):
+        ec = add_matching.ExternalComparer(None)
+        self.assertCountEqual(
+            [],
+            ec.compare(
+                'https://npmjs.org/package/org-pkg',
+                [{
+                    'ecosystem': 'rubygems',
+                    'homepage': 'http://some.example/',
+                    'id': 123,
+                    'name': 'foobar',
+                    'version_url': None,
+                    'backend': 'Rubygems'
+                }]
+            )
+        )
