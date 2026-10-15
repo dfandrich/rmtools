@@ -62,6 +62,7 @@ dev = [
     "flake8-warnings",
     "flake8-wot",
     "pyrefly",
+    "types-PyYAML",
     "pytype >= 2023.9.19, <= 2024.10.11"
 ]
 
