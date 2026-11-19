@@ -95,8 +95,10 @@ lint.external = ["PIE786"]
 
 [tool.pyrefly]
 project-includes = [
-    "**/*.py*",
-    "**/*.ipynb",
+    "rmtools/*.py*",
+    "rmtools/*.ipynb",
+    "tests/*.py*",
+    "tests/*.ipynb",
 ]
 preset = "default"
 check-unannotated-defs = true

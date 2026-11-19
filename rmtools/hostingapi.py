@@ -489,6 +489,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return None
@@ -531,6 +532,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return []
@@ -559,6 +561,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return []
@@ -593,6 +596,7 @@ class HostingAPI:
             try:
                 resp.raise_for_status()
             except netreq.HTTPError as e:
+                assert e.response
                 logger.info('Error retrieving data for %s (%s: %s)',
                             url, e.response.status_code, e.response.reason)
             else:
@@ -619,6 +623,7 @@ class HostingAPI:
                     try:
                         resp.raise_for_status()
                     except netreq.HTTPError as e:
+                        assert e.response
                         logger.info('Error retrieving data for %s (%s: %s)',
                                     url, e.response.status_code, e.response.reason)
                     else:
@@ -681,6 +686,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return []
@@ -736,6 +742,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return None
@@ -796,6 +803,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return []
@@ -856,6 +864,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return None
@@ -911,6 +920,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return []
@@ -953,6 +963,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return None
@@ -1001,6 +1012,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return None
@@ -1033,6 +1045,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return None
@@ -1065,6 +1078,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return None
@@ -1080,6 +1094,7 @@ class HostingAPI:
                 try:
                     resp.raise_for_status()
                 except netreq.HTTPError as e:
+                    assert e.response
                     logger.info('Error retrieving data for %s (%s: %s)',
                                 url, e.response.status_code, e.response.reason)
                 else:
@@ -1159,6 +1174,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return None
@@ -1219,6 +1235,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return None
@@ -1260,6 +1277,7 @@ class HostingAPI:
             try:
                 resp.raise_for_status()
             except netreq.HTTPError as e:
+                assert e.response
                 logger.info('Error retrieving data for %s (%s: %s)',
                             url, e.response.status_code, e.response.reason)
                 return None
@@ -1285,6 +1303,7 @@ class HostingAPI:
             try:
                 resp.raise_for_status()
             except netreq.HTTPError as e:
+                assert e.response
                 logger.info('Error retrieving data for %s (%s: %s)',
                             url, e.response.status_code, e.response.reason)
                 return None
@@ -1302,6 +1321,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return None
@@ -1341,6 +1361,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return None
@@ -1354,6 +1375,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return None
@@ -1392,6 +1414,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return None
@@ -1431,6 +1454,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return None
@@ -1459,6 +1483,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return None
@@ -1495,6 +1520,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return None
@@ -1514,6 +1540,7 @@ class HostingAPI:
         try:
             resp.raise_for_status()
         except netreq.HTTPError as e:
+            assert e.response
             logger.info('Error retrieving data for %s (%s: %s)',
                         url, e.response.status_code, e.response.reason)
             return None

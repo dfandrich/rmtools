@@ -51,6 +51,7 @@ class RMApi:
         # TODO: transparently handle error retries
         items = []
         page = 1
+        r = None
         while page < MAX_PAGE_FAILSAFE:
             logger.debug('Requesting %s page %d', path, page)
             resp = self.req.get(BASE_URL + path + '/',
@@ -66,6 +67,7 @@ class RMApi:
             if len(items) >= r['total_items']:
                 break
             page = page + 1
+        assert r is not None
         if r['total_items'] != len(items):
             logger.info('Wanted %d, got %d', r['total_items'], len(items))
         return items
